@@ -1,7 +1,7 @@
 .{
     .name = .hondo,
     .version = "0.1.0-alpha.0",
-    .fingerprint = 0xc90801d86dfb20f6, // Changing this has security and trust implications.
+    .fingerprint = 0x92f01884ffd8a34d, // Changing this has security and trust implications.
     .minimum_zig_version = "0.16.0",
     .dependencies = .{},
     .paths = .{
