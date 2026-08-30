@@ -23,6 +23,21 @@ export interface HondoMutationBridge {
   removeNode(parentId: number, nodeId: number): void;
 }
 
+export type HondoNativeOperation =
+  | 'createElement'
+  | 'createTextNode'
+  | 'replaceText'
+  | 'setProperty'
+  | 'insertNode'
+  | 'removeNode';
+
+export type HondoNativeArgument = string | number | null;
+
+export type HondoNativeHostCall = (
+  operation: HondoNativeOperation,
+  ...args: HondoNativeArgument[]
+) => void;
+
 export function encodeHondoValue(value: unknown): HondoValue {
   if (value == null) return null;
 
@@ -44,6 +59,44 @@ export function encodeHondoValue(value: unknown): HondoValue {
     }
     default:
       throw new TypeError(`Unsupported Hondo bridge value: ${typeof value}`);
+  }
+}
+
+function resolveNativeHostCall(): HondoNativeHostCall {
+  const hostCall = (globalThis as { __hondoHostCall?: unknown }).__hondoHostCall;
+  if (typeof hostCall !== 'function') {
+    throw new Error('Hondo native host call is not installed');
+  }
+  return hostCall as HondoNativeHostCall;
+}
+
+export class NativeMutationBridge implements HondoMutationBridge {
+  constructor(private readonly hostCall: HondoNativeHostCall = resolveNativeHostCall()) {}
+
+  createElement(id: number, type: string): void {
+    this.hostCall('createElement', id, type);
+  }
+
+  createTextNode(id: number, value: string): void {
+    this.hostCall('createTextNode', id, value);
+  }
+
+  replaceText(id: number, value: string): void {
+    this.hostCall('replaceText', id, value);
+  }
+
+  setProperty(id: number, name: string, value: HondoValue): void {
+    const encoded = JSON.stringify(value);
+    if (encoded === undefined) throw new TypeError('Hondo property value is not serializable');
+    this.hostCall('setProperty', id, name, encoded);
+  }
+
+  insertNode(parentId: number, nodeId: number, anchorId: number | null): void {
+    this.hostCall('insertNode', parentId, nodeId, anchorId);
+  }
+
+  removeNode(parentId: number, nodeId: number): void {
+    this.hostCall('removeNode', parentId, nodeId);
   }
 }
 
