@@ -5,12 +5,9 @@
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .quickjs_source = .{
+            // Bellard QuickJS 2026-06-04.
             .url = "https://github.com/bellard/quickjs/archive/04be246001599f5995fa2f2d8c91a0f198d3f34c.tar.gz",
-            // Placeholder from an older Bellard snapshot. The first Zig 0.16
-            // fetch intentionally verifies the archive and reports the canonical
-            // package hash for the pinned 2026-06-04 commit; this value will be
-            // replaced before the runtime PR is opened.
-            .hash = "N-V-__8AAFP3MACLqx3IPYUe7MVJki-nUn2Jtimo4Tx6u2s_",
+            .hash = "N-V-__8AAE90MgBqxwTjYLCBQDt1DwZArGS44ymqkxtY2IOX",
         },
     },
     .paths = .{
