@@ -7,11 +7,9 @@ import {
   type HondoValue,
 } from '@hondo/core';
 import {
-  createElement,
+  Text,
   createSignal,
-  insert,
   render,
-  setProp,
 } from '@hondo/solid';
 import { flush } from 'solid-js';
 
@@ -32,17 +30,18 @@ export function mountCounter(
     flush();
   };
 
-  const disposeRender = render(() => {
-    const text = createElement('text');
-    setProp(text, 'focusable', true);
-    setProp(text, 'onKey', (event: HondoNodeEvent) => {
-      if (!isActivationKey(event.payload)) return;
-      event.preventDefault();
-      increment();
-    });
-    insert(text, () => `Count: ${count()}`);
-    return text;
-  }, host.root);
+  const disposeRender = render(() =>
+    Text({
+      focusable: true,
+      autoFocus: true,
+      onKey: (event: HondoNodeEvent) => {
+        if (!isActivationKey(event.payload)) return;
+        event.preventDefault();
+        increment();
+      },
+      children: () => `Count: ${count()}`,
+    }),
+  host.root);
   flush();
 
   let disposed = false;
