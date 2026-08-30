@@ -68,13 +68,13 @@ test "renderer sends a full frame once then incremental cell diffs" {
     var renderer = try Renderer.init(std.testing.allocator, 4, 1);
     defer renderer.deinit();
 
-    renderer.grid().paintUtf8(0, 0, "A", 4);
+    try renderer.grid().paintUtf8(0, 0, "A", 4);
     const first = try renderer.encode();
     defer std.testing.allocator.free(first);
     try std.testing.expectEqualStrings("\x1b[H\x1b[2KA   ", first);
 
     renderer.grid().clear();
-    renderer.grid().paintUtf8(0, 0, "B", 4);
+    try renderer.grid().paintUtf8(0, 0, "B", 4);
     const second = try renderer.encode();
     defer std.testing.allocator.free(second);
     try std.testing.expectEqualStrings("\x1b[1;1HB", second);
@@ -93,7 +93,7 @@ test "renderer resize invalidates the previous frame" {
     try std.testing.expect(try renderer.resize(2, 1));
     try std.testing.expect(!try renderer.resize(2, 1));
 
-    renderer.grid().paintUtf8(0, 0, "C", 2);
+    try renderer.grid().paintUtf8(0, 0, "C", 2);
     const bytes = try renderer.encode();
     defer std.testing.allocator.free(bytes);
     try std.testing.expectEqualStrings("\x1b[H\x1b[2KC ", bytes);
