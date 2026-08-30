@@ -58,8 +58,7 @@ jobs:
         shell: bash
         run: |
           zig build install
-          printf '\r' | script -qefc "./zig-out/bin/hondo-counter --once" /tmp/hondo-pty.log
-          node -e "const fs=require('fs'); const d=fs.readFileSync('/tmp/hondo-pty.log'); for (const n of ['\u001b[?1049h','Count: 0','Count: 1','\u001b[?25h','\u001b[?1049l']) { if (!d.includes(Buffer.from(n))) throw new Error('missing PTY marker: '+JSON.stringify(n)); }"
+          python3 scripts/pty_smoke.py ./zig-out/bin/hondo-counter --once
 
       - name: Typecheck TypeScript
         run: npm run typecheck
