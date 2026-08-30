@@ -60,6 +60,21 @@ pub fn build(b: *std.Build) void {
         });
     }
 
+    const build_counter_bundle = b.addSystemCommand(&.{
+        "node",
+        "node_modules/esbuild/bin/esbuild",
+        "examples/counter/src/bundle.ts",
+        "--bundle",
+        "--platform=neutral",
+        "--format=iife",
+        "--target=es2020",
+        "--conditions=browser,development",
+        "--outfile=examples/counter/dist/counter.js",
+    });
+
+    const js_step = b.step("js", "Build Hondo JavaScript bundles");
+    js_step.dependOn(&build_counter_bundle.step);
+
     const hondo = b.addModule("hondo", .{
         .root_source_file = b.path("zig/src/root.zig"),
         .target = target,
@@ -72,6 +87,7 @@ pub fn build(b: *std.Build) void {
     const unit_tests = b.addTest(.{
         .root_module = hondo,
     });
+    unit_tests.step.dependOn(&build_counter_bundle.step);
     const run_unit_tests = b.addRunArtifact(unit_tests);
 
     const test_step = b.step("test", "Run Hondo Zig tests");
