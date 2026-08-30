@@ -298,3 +298,35 @@ test "QuickJS host bridge turns invalid scene mutations into JavaScript exceptio
         ),
     );
 }
+
+test "bundled Solid counter preserves native text identity across reactive update" {
+    const counter_bundle = @embedFile("../../../examples/counter/dist/counter.js");
+
+    var scene = try scene_module.Scene.init(std.testing.allocator);
+    defer scene.deinit();
+
+    var runtime = try Runtime.init();
+    defer runtime.deinit();
+    try runtime.installSceneBridge(&scene);
+
+    try runtime.eval(counter_bundle, "hondo-counter.js");
+
+    const text_node_id: scene_module.NodeId = 2;
+    const mounted = try scene.getNode(text_node_id);
+    try std.testing.expectEqual(text_node_id, mounted.id);
+    try std.testing.expectEqualStrings("Count: 0", mounted.text.?);
+
+    try runtime.eval(
+        "globalThis.__hondoCounterIncrement();",
+        "hondo-counter-increment.js",
+    );
+
+    const updated = try scene.getNode(text_node_id);
+    try std.testing.expectEqual(text_node_id, updated.id);
+    try std.testing.expectEqualStrings("Count: 1", updated.text.?);
+
+    try runtime.eval(
+        "globalThis.__hondoCounterDispose();",
+        "hondo-counter-dispose.js",
+    );
+}
