@@ -5,9 +5,22 @@ const c = @cImport({
     @cInclude("quickjs.h");
 });
 
+const runtime_stack_size = 8 * 1024 * 1024;
+const runtime_bootstrap =
+    \\if (typeof globalThis.queueMicrotask !== "function") {
+    \\  globalThis.queueMicrotask = function queueMicrotask(callback) {
+    \\    if (typeof callback !== "function") {
+    \\      throw new TypeError("queueMicrotask callback must be a function");
+    \\    }
+    \\    Promise.resolve().then(callback);
+    \\  };
+    \\}
+;
+
 pub const RuntimeError = error{
     RuntimeCreationFailed,
     ContextCreationFailed,
+    BootstrapFailed,
     HostBridgeInstallFailed,
     EvaluationFailed,
     PendingJobFailed,
@@ -20,9 +33,24 @@ pub const Runtime = struct {
     pub fn init() RuntimeError!Runtime {
         const runtime = c.JS_NewRuntime() orelse return RuntimeError.RuntimeCreationFailed;
         errdefer c.JS_FreeRuntime(runtime);
+        c.JS_SetMaxStackSize(runtime, runtime_stack_size);
 
         const context = c.JS_NewContext(runtime) orelse return RuntimeError.ContextCreationFailed;
+        errdefer c.JS_FreeContext(context);
         c.JS_SetRuntimeInfo(runtime, "hondo-official-quickjs");
+
+        const bootstrap = c.JS_Eval(
+            context,
+            runtime_bootstrap.ptr,
+            runtime_bootstrap.len,
+            "hondo-runtime-bootstrap.js",
+            c.JS_EVAL_TYPE_GLOBAL,
+        );
+        defer c.JS_FreeValue(context, bootstrap);
+        if (c.JS_IsException(bootstrap) != 0) {
+            dumpException(context);
+            return RuntimeError.BootstrapFailed;
+        }
 
         return .{
             .runtime = runtime,
