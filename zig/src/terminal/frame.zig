@@ -260,7 +260,8 @@ fn appendRgb(
 }
 
 fn ansiIndexForRgb(rgb: style_module.Rgb) u4 {
-    const bright: u4 = if (@as(u16, rgb.r) + rgb.g + rgb.b >= 384) 8 else 0;
+    const peak = @max(rgb.r, @max(rgb.g, rgb.b));
+    const bright: u4 = if (peak >= 192) 8 else 0;
     const red: u4 = if (rgb.r >= 128) 1 else 0;
     const green: u4 = if (rgb.g >= 128) 2 else 0;
     const blue: u4 = if (rgb.b >= 128) 4 else 0;
