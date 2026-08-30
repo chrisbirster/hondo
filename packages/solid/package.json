@@ -1,6 +1,6 @@
 {
   "name": "@hondo/solid",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.2",
   "private": true,
   "type": "module",
   "exports": {
@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@hondo/core": "0.1.0-alpha.0",
+    "@hondo/core": "0.1.0-alpha.2",
     "@solidjs/universal": "2.0.0-rc.4"
   },
   "peerDependencies": {
