@@ -218,10 +218,12 @@ fn appendAnsi16(
     index: u4,
     foreground: bool,
 ) !void {
+    const normal_base: u8 = if (foreground) 30 else 40;
+    const bright_base: u8 = if (foreground) 90 else 100;
     const numeric: u8 = if (index < 8)
-        (if (foreground) 30 else 40) + @as(u8, index)
+        normal_base + @as(u8, index)
     else
-        (if (foreground) 90 else 100) + @as(u8, index - 8);
+        bright_base + @as(u8, index - 8);
     const sequence = try std.fmt.allocPrint(allocator, "\x1b[{d}m", .{numeric});
     defer allocator.free(sequence);
     try output.appendSlice(allocator, sequence);
