@@ -60,7 +60,8 @@ fn renderNode(
             .column => {
                 if (cursor_y >= bounds.y + available_height) break;
                 const remaining_height = bounds.y + available_height - cursor_y;
-                const child_height = @min(child_style.height orelse naturalHeight(child), remaining_height);
+                const default_height = if (child.kind == .text) naturalHeight(child) else remaining_height;
+                const child_height = @min(child_style.height orelse default_height, remaining_height);
                 const child_width = @min(child_style.width orelse available_width, available_width);
                 try renderNode(scene, child_id, grid, .{
                     .x = bounds.x,
@@ -74,7 +75,8 @@ fn renderNode(
             .row => {
                 if (cursor_x >= bounds.x + available_width) break;
                 const remaining_width = bounds.x + available_width - cursor_x;
-                const child_width = @min(child_style.width orelse naturalWidth(child), remaining_width);
+                const default_width = if (child.kind == .text) naturalWidth(child) else remaining_width;
+                const child_width = @min(child_style.width orelse default_width, remaining_width);
                 const child_height = @min(child_style.height orelse available_height, available_height);
                 try renderNode(scene, child_id, grid, .{
                     .x = cursor_x,
