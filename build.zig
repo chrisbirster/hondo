@@ -93,5 +93,30 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run Hondo Zig tests");
     test_step.dependOn(&run_unit_tests.step);
 
+    const counter_module = b.createModule(.{
+        .root_source_file = b.path("zig/src/counter_main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    counter_module.addImport("hondo", hondo);
+
+    const counter_executable = b.addExecutable(.{
+        .name = "hondo-counter",
+        .root_module = counter_module,
+    });
+    counter_executable.step.dependOn(&build_counter_bundle.step);
+    b.installArtifact(counter_executable);
+
+    const run_counter = b.addRunArtifact(counter_executable);
+    if (b.args) |args| run_counter.addArgs(args);
+    const run_counter_step = b.step("run-counter", "Run the interactive Hondo counter example");
+    run_counter_step.dependOn(&run_counter.step);
+
+    const smoke_counter = b.addRunArtifact(counter_executable);
+    smoke_counter.addArg("--smoke");
+    const smoke_counter_step = b.step("counter-smoke", "Run the non-interactive counter smoke test");
+    smoke_counter_step.dependOn(&smoke_counter.step);
+
     b.default_step = test_step;
 }
