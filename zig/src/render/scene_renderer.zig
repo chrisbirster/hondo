@@ -1,6 +1,7 @@
 const std = @import("std");
 const scene_module = @import("../scene.zig");
 const cell_grid = @import("cell_grid.zig");
+const paint = @import("style.zig");
 
 pub const Direction = enum {
     column,
@@ -41,13 +42,21 @@ fn renderNode(
     const node = try scene.getNode(node_id);
 
     if (node.kind == .text) {
-        if (node.text) |text| try grid.paintUtf8(bounds.x, bounds.y, text, bounds.width);
+        if (node.text) |text| {
+            try grid.paintUtf8Styled(
+                bounds.x,
+                bounds.y,
+                text,
+                bounds.width,
+                try terminalStyleForNode(scene, node_id),
+            );
+        }
         return;
     }
 
-    const style = try styleForNode(scene, node_id, node.type_name);
-    const available_width = @min(bounds.width, style.width orelse bounds.width);
-    const available_height = @min(bounds.height, style.height orelse bounds.height);
+    const layout_style = try styleForNode(scene, node_id, node.type_name);
+    const available_width = @min(bounds.width, layout_style.width orelse bounds.width);
+    const available_height = @min(bounds.height, layout_style.height orelse bounds.height);
     if (available_width == 0 or available_height == 0) return;
 
     var cursor_x = bounds.x;
@@ -56,7 +65,7 @@ fn renderNode(
         const child = try scene.getNode(child_id);
         const child_style = try styleForNode(scene, child_id, child.type_name);
 
-        switch (style.direction) {
+        switch (layout_style.direction) {
             .column => {
                 if (cursor_y >= bounds.y + available_height) break;
                 const remaining_height = bounds.y + available_height - cursor_y;
@@ -70,7 +79,7 @@ fn renderNode(
                     .height = child_height,
                 });
                 cursor_y += child_height;
-                if (index + 1 < node.children.items.len) cursor_y +|= style.gap;
+                if (index + 1 < node.children.items.len) cursor_y +|= layout_style.gap;
             },
             .row => {
                 if (cursor_x >= bounds.x + available_width) break;
@@ -85,7 +94,7 @@ fn renderNode(
                     .height = child_height,
                 });
                 cursor_x += child_width;
-                if (index + 1 < node.children.items.len) cursor_x +|= style.gap;
+                if (index + 1 < node.children.items.len) cursor_x +|= layout_style.gap;
             },
         }
     }
@@ -107,6 +116,22 @@ fn styleForNode(scene: *scene_module.Scene, node_id: scene_module.NodeId, type_n
     return style;
 }
 
+fn terminalStyleForNode(scene: *scene_module.Scene, node_id: scene_module.NodeId) !paint.Style {
+    const json = (try scene.getPropertyJson(node_id, "style")) orelse return .{};
+    var result = paint.Style{};
+    result.foreground = jsonColorValue(json, "foreground") orelse .terminal_default;
+    result.background = jsonColorValue(json, "background") orelse .terminal_default;
+    result.attributes = .{
+        .bold = jsonBoolValue(json, "bold") orelse false,
+        .dim = jsonBoolValue(json, "dim") orelse false,
+        .italic = jsonBoolValue(json, "italic") orelse false,
+        .underline = jsonBoolValue(json, "underline") orelse false,
+        .reverse = jsonBoolValue(json, "reverse") orelse false,
+        .strikethrough = jsonBoolValue(json, "strikethrough") orelse false,
+    };
+    return result;
+}
+
 fn naturalWidth(node: *const scene_module.Node) usize {
     if (node.kind == .text) return if (node.text) |text| cell_grid.displayWidth(text) else 0;
     return 1;
@@ -117,12 +142,47 @@ fn naturalHeight(node: *const scene_module.Node) usize {
     return 1;
 }
 
+fn jsonColorValue(json: []const u8, key: []const u8) ?paint.Color {
+    if (jsonStringValue(json, key)) |value| return parseColor(value);
+    if (jsonUnsignedValue(json, key)) |value| {
+        if (value <= 255) return .{ .indexed = @intCast(value) };
+    }
+    return null;
+}
+
+fn parseColor(value: []const u8) ?paint.Color {
+    if (std.ascii.eqlIgnoreCase(value, "default")) return .terminal_default;
+    const names = [_][]const u8{
+        "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
+        "bright-black", "bright-red", "bright-green", "bright-yellow",
+        "bright-blue", "bright-magenta", "bright-cyan", "bright-white",
+    };
+    for (names, 0..) |name, index| {
+        if (std.ascii.eqlIgnoreCase(value, name)) return .{ .ansi = @intCast(index) };
+    }
+
+    if (value.len == 7 and value[0] == '#') {
+        const r = std.fmt.parseInt(u8, value[1..3], 16) catch return null;
+        const g = std.fmt.parseInt(u8, value[3..5], 16) catch return null;
+        const b = std.fmt.parseInt(u8, value[5..7], 16) catch return null;
+        return .{ .rgb = .{ .r = r, .g = g, .b = b } };
+    }
+    return null;
+}
+
 fn jsonUnsignedValue(json: []const u8, key: []const u8) ?usize {
     const value_start = jsonValueStart(json, key) orelse return null;
     var end = value_start;
     while (end < json.len and json[end] >= '0' and json[end] <= '9') : (end += 1) {}
     if (end == value_start) return null;
     return std.fmt.parseInt(usize, json[value_start..end], 10) catch null;
+}
+
+fn jsonBoolValue(json: []const u8, key: []const u8) ?bool {
+    const value_start = jsonValueStart(json, key) orelse return null;
+    if (std.mem.startsWith(u8, json[value_start..], "true")) return true;
+    if (std.mem.startsWith(u8, json[value_start..], "false")) return false;
+    return null;
 }
 
 fn jsonStringValue(json: []const u8, key: []const u8) ?[]const u8 {
@@ -218,4 +278,23 @@ test "row layout uses terminal display width for wide text" {
     defer std.testing.allocator.free(row);
     try std.testing.expectEqualStrings("界A ", row);
     try std.testing.expectEqual(cell_grid.CellKind.continuation, grid.get(1, 0).?.kind);
+}
+
+test "scene renderer maps terminal colors and attributes from style JSON" {
+    var scene = try scene_module.Scene.init(std.testing.allocator);
+    defer scene.deinit();
+
+    try scene.createText(1, "Hi");
+    try scene.setPropertyJson(1, "style", "{\"foreground\":\"#12abef\",\"background\":4,\"bold\":true,\"underline\":true}");
+    try scene.insertNode(0, 1, null);
+
+    var grid = try cell_grid.CellGrid.init(std.testing.allocator, 2, 1);
+    defer grid.deinit();
+    try render(&scene, &grid);
+
+    const cell = grid.get(0, 0).?;
+    try std.testing.expect(cell.style.foreground.eql(.{ .rgb = .{ .r = 0x12, .g = 0xab, .b = 0xef } }));
+    try std.testing.expect(cell.style.background.eql(.{ .indexed = 4 }));
+    try std.testing.expect(cell.style.attributes.bold);
+    try std.testing.expect(cell.style.attributes.underline);
 }
