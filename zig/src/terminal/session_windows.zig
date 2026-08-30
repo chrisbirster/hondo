@@ -19,8 +19,8 @@ pub const Session = struct {
     active: bool = true,
 
     pub fn begin(input_fd: c_int, output_fd: c_int) SessionError!Session {
-        const input_handle = try handleForFd(input_fd);
-        const output_handle = try handleForFd(output_fd);
+        const input_handle = handleForFd(input_fd) catch return SessionError.NotTerminal;
+        const output_handle = handleForFd(output_fd) catch return SessionError.NotTerminal;
 
         // The CRT's _isatty() is not authoritative for modern Windows terminal
         // attachment. In particular, a process attached through ConPTY can have
