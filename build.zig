@@ -4,6 +4,15 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const quickjs_source = b.dependency("quickjs_source", .{});
+    const uucode = b.dependency("uucode", .{
+        .target = target,
+        .optimize = optimize,
+        .fields = @as([]const []const u8, &.{
+            "grapheme_break",
+            "wcwidth_standalone",
+            "wcwidth_zero_in_grapheme",
+        }),
+    });
     const is_windows = target.result.os.tag == .windows;
 
     const quickjs = b.addLibrary(.{
@@ -82,6 +91,7 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
     });
     hondo.addIncludePath(quickjs_source.path("."));
+    hondo.addImport("uucode", uucode.module("uucode"));
     hondo.linkLibrary(quickjs);
 
     const unit_tests = b.addTest(.{
