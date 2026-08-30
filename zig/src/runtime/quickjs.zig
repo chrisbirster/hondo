@@ -2,7 +2,19 @@ const std = @import("std");
 
 const c = @cImport({
     @cInclude("quickjs.h");
+    @cInclude("stdlib.h");
 });
+
+const AllocationHeader = extern struct {
+    size: usize,
+};
+
+const hondo_malloc_functions = c.JSMallocFunctions{
+    .js_malloc = hondoMalloc,
+    .js_free = hondoFree,
+    .js_realloc = hondoRealloc,
+    .js_malloc_usable_size = hondoMallocUsableSize,
+};
 
 pub const RuntimeError = error{
     RuntimeCreationFailed,
@@ -16,7 +28,8 @@ pub const Runtime = struct {
     context: *c.JSContext,
 
     pub fn init() RuntimeError!Runtime {
-        const runtime = c.JS_NewRuntime() orelse return RuntimeError.RuntimeCreationFailed;
+        const runtime = c.JS_NewRuntime2(&hondo_malloc_functions, null) orelse
+            return RuntimeError.RuntimeCreationFailed;
         errdefer c.JS_FreeRuntime(runtime);
 
         const context = c.JS_NewContext(runtime) orelse return RuntimeError.ContextCreationFailed;
@@ -62,6 +75,88 @@ pub const Runtime = struct {
         }
     }
 };
+
+fn hondoMalloc(maybe_state: ?*c.JSMallocState, size: usize) callconv(.c) ?*anyopaque {
+    if (size == 0) return null;
+    const state = maybe_state orelse return null;
+
+    if (state.malloc_size > state.malloc_limit or
+        size > state.malloc_limit - state.malloc_size)
+    {
+        return null;
+    }
+
+    const total_size = std.math.add(usize, size, @sizeOf(AllocationHeader)) catch return null;
+    const raw = c.malloc(total_size) orelse return null;
+    const header: *AllocationHeader = @ptrCast(@alignCast(raw));
+    header.size = size;
+
+    state.malloc_count += 1;
+    state.malloc_size += size;
+
+    return @ptrFromInt(@intFromPtr(raw) + @sizeOf(AllocationHeader));
+}
+
+fn hondoFree(maybe_state: ?*c.JSMallocState, maybe_ptr: ?*anyopaque) callconv(.c) void {
+    const ptr = maybe_ptr orelse return;
+    const state = maybe_state orelse return;
+    const header = allocationHeader(ptr);
+
+    state.malloc_count -= 1;
+    state.malloc_size -= header.size;
+    c.free(header);
+}
+
+fn hondoRealloc(
+    maybe_state: ?*c.JSMallocState,
+    maybe_ptr: ?*anyopaque,
+    size: usize,
+) callconv(.c) ?*anyopaque {
+    const state = maybe_state orelse return null;
+    const ptr = maybe_ptr orelse return hondoMalloc(state, size);
+
+    if (size == 0) {
+        hondoFree(state, ptr);
+        return null;
+    }
+
+    const old_header = allocationHeader(ptr);
+    const old_size = old_header.size;
+    if (size > old_size) {
+        const growth = size - old_size;
+        if (state.malloc_size > state.malloc_limit or
+            growth > state.malloc_limit - state.malloc_size)
+        {
+            return null;
+        }
+    }
+
+    const total_size = std.math.add(usize, size, @sizeOf(AllocationHeader)) catch return null;
+    const raw = c.realloc(old_header, total_size) orelse return null;
+    const new_header: *AllocationHeader = @ptrCast(@alignCast(raw));
+    new_header.size = size;
+
+    if (size >= old_size) {
+        state.malloc_size += size - old_size;
+    } else {
+        state.malloc_size -= old_size - size;
+    }
+
+    return @ptrFromInt(@intFromPtr(raw) + @sizeOf(AllocationHeader));
+}
+
+fn hondoMallocUsableSize(maybe_ptr: ?*const anyopaque) callconv(.c) usize {
+    const ptr = maybe_ptr orelse return 0;
+    return allocationHeaderConst(ptr).size;
+}
+
+fn allocationHeader(ptr: *anyopaque) *AllocationHeader {
+    return @ptrFromInt(@intFromPtr(ptr) - @sizeOf(AllocationHeader));
+}
+
+fn allocationHeaderConst(ptr: *const anyopaque) *const AllocationHeader {
+    return @ptrFromInt(@intFromPtr(ptr) - @sizeOf(AllocationHeader));
+}
 
 fn dumpException(context: *c.JSContext) void {
     const exception = c.JS_GetException(context);
