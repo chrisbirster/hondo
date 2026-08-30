@@ -1,5 +1,9 @@
 const std = @import("std");
 
+pub const GridError = error{
+    DimensionMismatch,
+};
+
 pub const Cell = struct {
     codepoint: u21 = ' ',
 };
@@ -28,6 +32,15 @@ pub const CellGrid = struct {
 
     pub fn clear(self: *CellGrid) void {
         @memset(self.cells, Cell{});
+    }
+
+    pub fn sameDimensions(self: *const CellGrid, other: *const CellGrid) bool {
+        return self.width == other.width and self.height == other.height;
+    }
+
+    pub fn copyFrom(self: *CellGrid, other: *const CellGrid) GridError!void {
+        if (!self.sameDimensions(other)) return GridError.DimensionMismatch;
+        @memcpy(self.cells, other.cells);
     }
 
     pub fn set(self: *CellGrid, x: usize, y: usize, codepoint: u21) void {
@@ -101,4 +114,22 @@ test "cell grid ignores writes outside its bounds" {
 
     grid.set(99, 99, 'x');
     try std.testing.expectEqual(@as(u21, ' '), grid.get(0, 0).?.codepoint);
+}
+
+test "cell grid copies matching frames and rejects mismatched dimensions" {
+    var source = try CellGrid.init(std.testing.allocator, 3, 1);
+    defer source.deinit();
+    source.paintUtf8(0, 0, "Aλ", 3);
+
+    var destination = try CellGrid.init(std.testing.allocator, 3, 1);
+    defer destination.deinit();
+    try destination.copyFrom(&source);
+
+    const row = try destination.rowUtf8(std.testing.allocator, 0);
+    defer std.testing.allocator.free(row);
+    try std.testing.expectEqualStrings("Aλ ", row);
+
+    var mismatched = try CellGrid.init(std.testing.allocator, 2, 1);
+    defer mismatched.deinit();
+    try std.testing.expectError(GridError.DimensionMismatch, mismatched.copyFrom(&source));
 }
