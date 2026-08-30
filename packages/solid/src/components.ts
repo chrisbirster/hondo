@@ -125,14 +125,17 @@ export function Column(props: PrimitiveProps = {}): HondoNode {
 
 export function Spacer(props: SpacerProps = {}): HondoNode {
   const node = createElement('spacer');
-  effect(() => {
-    setProp(node, 'style', {
-      basis: props.size ?? 0,
-      grow: props.grow ?? 1,
-      shrink: props.shrink ?? 1,
-      ...(props.style ?? {}),
-    });
-  });
+  effect(
+    () => [props.size, props.grow, props.shrink, props.style] as const,
+    ([size, grow, shrink, style]) => {
+      setProp(node, 'style', {
+        basis: size ?? 0,
+        grow: grow ?? 1,
+        shrink: shrink ?? 1,
+        ...(style ?? {}),
+      });
+    },
+  );
   applyEvents(node, props);
   return node;
 }
@@ -146,15 +149,25 @@ export function focusNode(node: HondoNode): void {
 function primitive(type: string, props: PrimitiveProps): HondoNode {
   const node = createElement(type);
 
-  effect(() => {
-    if (props.style !== undefined) setProp(node, 'style', props.style);
-    if (props.focusable !== undefined || props.autoFocus) {
-      setProp(node, 'focusable', props.focusable ?? true);
-    }
-  });
+  effect(
+    () => props.style,
+    style => {
+      if (style !== undefined) setProp(node, 'style', style);
+    },
+  );
+
+  effect(
+    () => props.focusable,
+    focusable => {
+      if (focusable !== undefined) setProp(node, 'focusable', focusable);
+    },
+  );
 
   applyEvents(node, props);
-  if (props.autoFocus) focusNode(node);
+  if (props.autoFocus) {
+    if (props.focusable === undefined) setProp(node, 'focusable', true);
+    focusNode(node);
+  }
 
   if (props.ref) {
     const handle: HondoRefHandle = {
