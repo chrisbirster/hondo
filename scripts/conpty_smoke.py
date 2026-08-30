@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import winpty
 
@@ -31,8 +32,9 @@ ORDERED_MARKERS = (
 
 
 def fail(message: str, output: str) -> None:
-    sys.stderr.write(f"ConPTY smoke failed: {message}\n")
-    sys.stderr.write(f"captured text: {output!r}\n")
+    diagnostic = f"ConPTY smoke failed: {message}\ncaptured text: {output!r}\n"
+    Path("conpty-smoke-debug.txt").write_text(diagnostic, encoding="utf-8")
+    sys.stderr.write(diagnostic)
     raise SystemExit(1)
 
 
