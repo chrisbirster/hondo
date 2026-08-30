@@ -6,7 +6,9 @@ const counter_bundle = @embedFile("generated/counter.js");
 const grid_width = 64;
 const grid_height = 3;
 const resize_poll_ms = 50;
+const sequence_wait_ms = 10;
 const instructions = "Enter/Space: increment  q/Esc/Ctrl-C: quit";
+const counter_focus_node_id: hondo.scene.NodeId = 1;
 
 const CounterError = error{
     SmokeAssertionFailed,
@@ -17,6 +19,7 @@ const CounterApp = struct {
     scene: *hondo.scene.Scene,
     runtime: hondo.runtime.Runtime,
     renderer: hondo.terminal.renderer.Renderer,
+    focus: hondo.focus.Manager,
 
     fn init(allocator: std.mem.Allocator, width: usize, height: usize) !CounterApp {
         const scene = try allocator.create(hondo.scene.Scene);
@@ -32,15 +35,24 @@ const CounterApp = struct {
         var renderer = try hondo.terminal.renderer.Renderer.init(allocator, width, height);
         errdefer renderer.deinit();
 
+        var focus = hondo.focus.Manager{};
+        if (try focus.set(scene, counter_focus_node_id)) |change| {
+            try hondo.input_events.dispatchFocusChange(&runtime, change);
+        }
+
         return .{
             .allocator = allocator,
             .scene = scene,
             .runtime = runtime,
             .renderer = renderer,
+            .focus = focus,
         };
     }
 
     fn deinit(self: *CounterApp) void {
+        if (self.focus.clear()) |change| {
+            hondo.input_events.dispatchFocusChange(&self.runtime, change) catch {};
+        }
         self.runtime.eval(
             "globalThis.__hondoCounterDispose?.();",
             "hondo-counter-executable-dispose.js",
@@ -58,6 +70,11 @@ const CounterApp = struct {
             "counter.increment",
             "{\"source\":\"terminal\"}",
         );
+    }
+
+    fn dispatchInput(self: *CounterApp, event: hondo.terminal.input.Event) !hondo.node_events.Result {
+        const target = self.focus.target() orelse return .{ .default_prevented = false };
+        return hondo.input_events.dispatch(self.allocator, &self.runtime, target, event);
     }
 
     fn render(self: *CounterApp) !void {
@@ -121,9 +138,17 @@ fn runInteractive(allocator: std.mem.Allocator, once: bool) !void {
     defer allocator.free(restore);
     defer counter_io.writeAll(counter_io.stdout_fd, restore) catch {};
 
+    const input_restore = try hondo.terminal.control.inputFeaturesRestoreSequence(allocator);
+    defer allocator.free(input_restore);
+    defer counter_io.writeAll(counter_io.stdout_fd, input_restore) catch {};
+
     const begin = try hondo.terminal.control.beginSequence(allocator);
     defer allocator.free(begin);
     try counter_io.writeAll(counter_io.stdout_fd, begin);
+
+    const input_begin = try hondo.terminal.control.inputFeaturesBeginSequence(allocator);
+    defer allocator.free(input_begin);
+    try counter_io.writeAll(counter_io.stdout_fd, input_begin);
 
     const initial_size = hondo.terminal.size.query(counter_io.stdout_fd) catch hondo.terminal.size.Size{
         .width = grid_width,
@@ -144,28 +169,76 @@ fn runInteractive(allocator: std.mem.Allocator, once: bool) !void {
         }
 
         if (!has_input) continue;
-        const byte = (try counter_io.readByte(counter_io.stdin_fd)) orelse break;
-        const input = [_]u8{byte};
-        const decoded = hondo.terminal.input.decode(&input) orelse continue;
+        const event = (try readTerminalEvent(counter_io.stdin_fd)) orelse break;
+        if (isQuitEvent(event)) break :input_loop;
 
-        switch (decoded.key) {
-            .enter => {
-                try app.increment();
-                try app.writeFrame();
-                if (once) break :input_loop;
-            },
-            .codepoint => |codepoint| {
-                if (codepoint == 'q') break :input_loop;
-                if (codepoint == ' ') {
-                    try app.increment();
-                    try app.writeFrame();
-                    if (once) break :input_loop;
-                }
-            },
-            .escape, .ctrl_c => break :input_loop,
-            else => {},
-        }
+        _ = try app.dispatchInput(event);
+        try app.writeFrame();
+        if (once and isActivationEvent(event)) break :input_loop;
     }
+}
+
+fn readTerminalEvent(fd: c_int) !?hondo.terminal.input.Event {
+    const first = (try counter_io.readByte(fd)) orelse return null;
+    var bytes: [64]u8 = undefined;
+    bytes[0] = first;
+    var len: usize = 1;
+
+    if (first == 0x1b) {
+        if (!try hondo.terminal.wait.readable(fd, sequence_wait_ms)) {
+            return .{ .key = .escape };
+        }
+
+        bytes[len] = (try counter_io.readByte(fd)) orelse return .{ .key = .escape };
+        len += 1;
+        if (bytes[1] != '[') return .{ .key = .escape };
+
+        while (len < bytes.len) {
+            if (len >= 3) {
+                if (hondo.terminal.input.decode(bytes[0..len])) |decoded| {
+                    if (decoded.consumed == len) return decoded.event;
+                }
+            }
+
+            if (!try hondo.terminal.wait.readable(fd, sequence_wait_ms)) {
+                return .{ .key = .escape };
+            }
+            bytes[len] = (try counter_io.readByte(fd)) orelse return .{ .key = .escape };
+            len += 1;
+        }
+        return .{ .key = .escape };
+    }
+
+    const sequence_len = std.unicode.utf8ByteSequenceLength(first) catch 1;
+    while (len < sequence_len and len < bytes.len) : (len += 1) {
+        bytes[len] = (try counter_io.readByte(fd)) orelse break;
+    }
+    return if (hondo.terminal.input.decode(bytes[0..len])) |decoded|
+        decoded.event
+    else
+        .{ .key = .{ .codepoint = 0xfffd } };
+}
+
+fn isQuitEvent(event: hondo.terminal.input.Event) bool {
+    return switch (event) {
+        .key => |key| switch (key) {
+            .escape, .ctrl_c => true,
+            .codepoint => |codepoint| codepoint == 'q',
+            else => false,
+        },
+        else => false,
+    };
+}
+
+fn isActivationEvent(event: hondo.terminal.input.Event) bool {
+    return switch (event) {
+        .key => |key| switch (key) {
+            .enter => true,
+            .codepoint => |codepoint| codepoint == ' ',
+            else => false,
+        },
+        else => false,
+    };
 }
 
 fn hasArg(args: []const [:0]const u8, expected: []const u8) bool {
