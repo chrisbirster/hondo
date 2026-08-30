@@ -12,6 +12,7 @@
         .uucode = .{
             // uucode 0.2.0, pinned to a Zig 0.16-compatible commit.
             .url = "https://github.com/jacobsandlund/uucode/archive/2826a37a4562284fdacd8fa029d49509cc9bffcd.tar.gz",
+            .hash = "uucode-0.2.0-ZZjBPlK5VADj7fdoq7G8LIHzD5o6FSkcBXXrRWr4jnrA",
         },
     },
     .paths = .{
