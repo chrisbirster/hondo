@@ -16,6 +16,16 @@ pub const NodeKind = enum {
     text,
 };
 
+pub const Property = struct {
+    name: []u8,
+    value_json: []u8,
+
+    fn deinit(self: *Property, allocator: std.mem.Allocator) void {
+        allocator.free(self.name);
+        allocator.free(self.value_json);
+    }
+};
+
 pub const Node = struct {
     id: NodeId,
     kind: NodeKind,
@@ -23,11 +33,14 @@ pub const Node = struct {
     text: ?[]u8 = null,
     parent: ?NodeId = null,
     children: std.ArrayList(NodeId) = .empty,
+    properties: std.ArrayList(Property) = .empty,
 
     fn deinit(self: *Node, allocator: std.mem.Allocator) void {
         allocator.free(self.type_name);
         if (self.text) |text| allocator.free(text);
         self.children.deinit(allocator);
+        for (self.properties.items) |*property| property.deinit(allocator);
+        self.properties.deinit(allocator);
     }
 };
 
@@ -71,6 +84,41 @@ pub const Scene = struct {
             self.allocator.free(existing);
         }
         entry.text = try self.allocator.dupe(u8, value);
+    }
+
+    pub fn setPropertyJson(
+        self: *Scene,
+        id: NodeId,
+        name: []const u8,
+        value_json: []const u8,
+    ) !void {
+        const entry = try self.getNode(id);
+        for (entry.properties.items) |*property| {
+            if (!std.mem.eql(u8, property.name, name)) continue;
+
+            const replacement = try self.allocator.dupe(u8, value_json);
+            self.allocator.free(property.value_json);
+            property.value_json = replacement;
+            return;
+        }
+
+        const owned_name = try self.allocator.dupe(u8, name);
+        errdefer self.allocator.free(owned_name);
+        const owned_value = try self.allocator.dupe(u8, value_json);
+        errdefer self.allocator.free(owned_value);
+
+        try entry.properties.append(self.allocator, .{
+            .name = owned_name,
+            .value_json = owned_value,
+        });
+    }
+
+    pub fn getPropertyJson(self: *Scene, id: NodeId, name: []const u8) !?[]const u8 {
+        const entry = try self.getNode(id);
+        for (entry.properties.items) |property| {
+            if (std.mem.eql(u8, property.name, name)) return property.value_json;
+        }
+        return null;
     }
 
     pub fn insertNode(self: *Scene, parent_id: NodeId, node_id: NodeId, anchor_id: ?NodeId) !void {
@@ -192,4 +240,22 @@ test "scene reorders an existing identity before an anchor" {
 
     const root = try scene.getNode(0);
     try std.testing.expectEqualSlices(NodeId, &.{ 3, 1, 2 }, root.children.items);
+}
+
+test "scene stores property JSON without assigning presentation semantics" {
+    var scene = try Scene.init(std.testing.allocator);
+    defer scene.deinit();
+
+    try scene.createElement(1, "text");
+    try scene.setPropertyJson(1, "style", "{\"bold\":true}");
+    try std.testing.expectEqualStrings(
+        "{\"bold\":true}",
+        (try scene.getPropertyJson(1, "style")).?,
+    );
+
+    try scene.setPropertyJson(1, "style", "{\"bold\":false}");
+    try std.testing.expectEqualStrings(
+        "{\"bold\":false}",
+        (try scene.getPropertyJson(1, "style")).?,
+    );
 }
