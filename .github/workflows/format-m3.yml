@@ -16,16 +16,28 @@ jobs:
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0
-      - name: Format Zig
-        run: zig fmt zig build.zig
-      - name: Commit formatting
+      - name: Format Zig or capture diagnostics
         shell: bash
         run: |
+          set +e
+          zig fmt zig build.zig > /tmp/zig-fmt.log 2>&1
+          status=$?
+          set -e
+
+          git config user.name "hondo-ci"
+          git config user.email "actions@users.noreply.github.com"
+
+          if [ "$status" -ne 0 ]; then
+            cp /tmp/zig-fmt.log docs/notes/m3-format-error.txt
+            git add docs/notes/m3-format-error.txt
+            git commit -m "ci: capture M3 Zig format diagnostics"
+            git push
+            exit "$status"
+          fi
+
           if git diff --quiet; then
             exit 0
           fi
-          git config user.name "hondo-ci"
-          git config user.email "actions@users.noreply.github.com"
           git add zig build.zig
           git commit -m "chore: format M3 Zig changes"
           git push
