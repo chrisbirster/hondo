@@ -11,32 +11,32 @@ pub const SessionError = error{
 };
 
 pub const Session = struct {
-    fd: c_int,
+    input_fd: c_int,
     original: c.struct_termios,
     active: bool = true,
 
-    pub fn begin(fd: c_int) SessionError!Session {
-        if (c.isatty(fd) != 1) return SessionError.NotTerminal;
+    pub fn begin(input_fd: c_int, output_fd: c_int) SessionError!Session {
+        if (c.isatty(input_fd) != 1 or c.isatty(output_fd) != 1) return SessionError.NotTerminal;
 
         var original: c.struct_termios = undefined;
-        if (c.tcgetattr(fd, &original) != 0) return SessionError.ReadAttributesFailed;
+        if (c.tcgetattr(input_fd, &original) != 0) return SessionError.ReadAttributesFailed;
 
         var raw = original;
         c.cfmakeraw(&raw);
-        if (c.tcsetattr(fd, c.TCSAFLUSH, &raw) != 0) return SessionError.EnterRawModeFailed;
+        if (c.tcsetattr(input_fd, c.TCSAFLUSH, &raw) != 0) return SessionError.EnterRawModeFailed;
 
         return .{
-            .fd = fd,
+            .input_fd = input_fd,
             .original = original,
         };
     }
 
     pub fn restore(self: *Session) SessionError!void {
         if (!self.active) return;
-        if (c.tcsetattr(self.fd, c.TCSAFLUSH, &self.original) != 0) {
+        self.active = false;
+        if (c.tcsetattr(self.input_fd, c.TCSAFLUSH, &self.original) != 0) {
             return SessionError.RestoreFailed;
         }
-        self.active = false;
     }
 };
 
