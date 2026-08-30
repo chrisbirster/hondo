@@ -1,4 +1,4 @@
-name: Diagnose M3
+name: Repair M3
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  diagnose:
+  repair:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,20 +21,34 @@ jobs:
           node-version: 24
       - run: npm install --global npm@12.0.2
       - run: npm install
-      - name: Run Zig tests or capture diagnostics
+      - name: Repair runtime compatibility and layout defaults
         shell: bash
         run: |
-          set +e
-          zig build test > /tmp/m3-test.log 2>&1
-          status=$?
-          set -e
-          if [ "$status" -eq 0 ]; then
-            exit 0
-          fi
-          cp /tmp/m3-test.log docs/notes/m3-test-error.txt
+          python3 - <<'PY'
+          from pathlib import Path
+
+          quickjs = Path('zig/src/runtime/quickjs.zig')
+          text = quickjs.read_text()
+          marker = '''    \\\\  };\n    \\\\}\n;\n'''
+          replacement = '''    \\\\  };\n    \\\\}\n    \\\\if (typeof globalThis.console !== "object" || globalThis.console === null) {\n    \\\\  const noop = function noop() {};\n    \\\\  globalThis.console = {\n    \\\\    log: noop,\n    \\\\    info: noop,\n    \\\\    warn: noop,\n    \\\\    error: noop,\n    \\\\    debug: noop,\n    \\\\  };\n    \\\\}\n;\n'''
+          if marker not in text:
+              raise SystemExit('quickjs bootstrap marker not found')
+          quickjs.write_text(text.replace(marker, replacement, 1))
+
+          renderer = Path('zig/src/render/scene_renderer.zig')
+          text = renderer.read_text()
+          text = text.replace('    shrink: usize = 1,', '    shrink: usize = 0,', 1)
+          text = text.replace('style.shrink = jsonUnsignedValue(json, "shrink") orelse 1;', 'style.shrink = jsonUnsignedValue(json, "shrink") orelse 0;', 1)
+          renderer.write_text(text)
+
+          Path('docs/notes/m3-test-error.txt').unlink(missing_ok=True)
+          PY
+
+          zig fmt zig build.zig
+          zig build test
+
           git config user.name "hondo-ci"
           git config user.email "actions@users.noreply.github.com"
-          git add docs/notes/m3-test-error.txt
-          git commit -m "ci: capture M3 Zig test diagnostics"
+          git add zig/src/runtime/quickjs.zig zig/src/render/scene_renderer.zig docs/notes/m3-test-error.txt
+          git commit -m "fix: preserve QuickJS and layout compatibility"
           git push
-          exit "$status"
