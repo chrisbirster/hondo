@@ -41,7 +41,7 @@ fn renderNode(
     const node = try scene.getNode(node_id);
 
     if (node.kind == .text) {
-        if (node.text) |text| grid.paintUtf8(bounds.x, bounds.y, text, bounds.width);
+        if (node.text) |text| try grid.paintUtf8(bounds.x, bounds.y, text, bounds.width);
         return;
     }
 
@@ -108,23 +108,13 @@ fn styleForNode(scene: *scene_module.Scene, node_id: scene_module.NodeId, type_n
 }
 
 fn naturalWidth(node: *const scene_module.Node) usize {
-    if (node.kind == .text) return if (node.text) |text| utf8CodepointCount(text) else 0;
+    if (node.kind == .text) return if (node.text) |text| cell_grid.displayWidth(text) else 0;
     return 1;
 }
 
 fn naturalHeight(node: *const scene_module.Node) usize {
     _ = node;
     return 1;
-}
-
-fn utf8CodepointCount(text: []const u8) usize {
-    var count: usize = 0;
-    var index: usize = 0;
-    while (index < text.len) : (count += 1) {
-        const len = std.unicode.utf8ByteSequenceLength(text[index]) catch 1;
-        index += @min(len, text.len - index);
-    }
-    return count;
 }
 
 fn jsonUnsignedValue(json: []const u8, key: []const u8) ?usize {
@@ -207,4 +197,25 @@ test "scene renderer composes columns and honors explicit child width" {
     try std.testing.expectEqualStrings("fir   ", first);
     try std.testing.expectEqualStrings("      ", spacer);
     try std.testing.expectEqualStrings("second", second);
+}
+
+test "row layout uses terminal display width for wide text" {
+    var scene = try scene_module.Scene.init(std.testing.allocator);
+    defer scene.deinit();
+
+    try scene.createElement(1, "row");
+    try scene.createText(2, "界");
+    try scene.createText(3, "A");
+    try scene.insertNode(0, 1, null);
+    try scene.insertNode(1, 2, null);
+    try scene.insertNode(1, 3, null);
+
+    var grid = try cell_grid.CellGrid.init(std.testing.allocator, 4, 1);
+    defer grid.deinit();
+    try render(&scene, &grid);
+
+    const row = try grid.rowUtf8(std.testing.allocator, 0);
+    defer std.testing.allocator.free(row);
+    try std.testing.expectEqualStrings("界A ", row);
+    try std.testing.expectEqual(cell_grid.CellKind.continuation, grid.get(1, 0).?.kind);
 }
