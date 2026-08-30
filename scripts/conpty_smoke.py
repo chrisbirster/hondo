@@ -61,7 +61,10 @@ def main() -> None:
         INITIAL_ROWS,
         backend=winpty.Backend.ConPTY,
     )
-    pty.spawn(executable, cwd=os.getcwd(), env=os.environ, cmdline=cmdline)
+    if cmdline is None:
+        pty.spawn(executable, cwd=os.getcwd())
+    else:
+        pty.spawn(executable, cwd=os.getcwd(), cmdline=cmdline)
 
     output = ""
     deadline = time.monotonic() + TIMEOUT_SECONDS
