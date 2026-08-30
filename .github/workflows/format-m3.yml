@@ -16,9 +16,19 @@ jobs:
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0
-      - name: Format Zig or capture diagnostics
+      - name: Repair reserved Zig identifier and format
         shell: bash
         run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('zig/src/render/scene_renderer.zig')
+          text = path.read_text()
+          text = text.replace('    align: Align = .stretch,', '    alignment: Align = .stretch,')
+          text = text.replace('layout_style.align', 'layout_style.alignment')
+          text = text.replace('style.align = jsonAlignValue(json, "align") orelse .stretch;', 'style.alignment = jsonAlignValue(json, "align") orelse .stretch;')
+          path.write_text(text)
+          PY
+
           set +e
           zig fmt zig build.zig > /tmp/zig-fmt.log 2>&1
           status=$?
@@ -26,11 +36,12 @@ jobs:
 
           git config user.name "hondo-ci"
           git config user.email "actions@users.noreply.github.com"
+          rm -f docs/notes/m3-format-error.txt
 
           if [ "$status" -ne 0 ]; then
             cp /tmp/zig-fmt.log docs/notes/m3-format-error.txt
-            git add docs/notes/m3-format-error.txt
-            git commit -m "ci: capture M3 Zig format diagnostics"
+            git add zig build.zig docs/notes/m3-format-error.txt
+            git commit -m "ci: repair M3 syntax and capture formatter diagnostics"
             git push
             exit "$status"
           fi
@@ -38,6 +49,6 @@ jobs:
           if git diff --quiet; then
             exit 0
           fi
-          git add zig build.zig
-          git commit -m "chore: format M3 Zig changes"
+          git add zig build.zig docs/notes/m3-format-error.txt
+          git commit -m "chore: repair and format M3 Zig changes"
           git push
