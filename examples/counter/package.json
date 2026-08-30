@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "esbuild src/bundle.ts --bundle --platform=neutral --format=iife --target=es2020 --conditions=browser,development --outfile=dist/counter.js",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
