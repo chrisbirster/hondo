@@ -125,7 +125,7 @@ fn runInteractive(allocator: std.mem.Allocator, once: bool) !void {
     defer allocator.free(begin);
     try counter_io.writeAll(counter_io.stdout_fd, begin);
 
-    const initial_size = hondo.terminal.size.query(counter_io.stdout_fd) catch .{
+    const initial_size = hondo.terminal.size.query(counter_io.stdout_fd) catch hondo.terminal.size.Size{
         .width = grid_width,
         .height = grid_height,
     };
