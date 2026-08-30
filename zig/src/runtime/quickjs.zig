@@ -5,9 +5,22 @@ const c = @cImport({
     @cInclude("quickjs.h");
 });
 
+const runtime_stack_size = 8 * 1024 * 1024;
+const runtime_bootstrap =
+    \\if (typeof globalThis.queueMicrotask !== "function") {
+    \\  globalThis.queueMicrotask = function queueMicrotask(callback) {
+    \\    if (typeof callback !== "function") {
+    \\      throw new TypeError("queueMicrotask callback must be a function");
+    \\    }
+    \\    Promise.resolve().then(callback);
+    \\  };
+    \\}
+;
+
 pub const RuntimeError = error{
     RuntimeCreationFailed,
     ContextCreationFailed,
+    BootstrapFailed,
     HostBridgeInstallFailed,
     EvaluationFailed,
     PendingJobFailed,
@@ -20,9 +33,24 @@ pub const Runtime = struct {
     pub fn init() RuntimeError!Runtime {
         const runtime = c.JS_NewRuntime() orelse return RuntimeError.RuntimeCreationFailed;
         errdefer c.JS_FreeRuntime(runtime);
+        c.JS_SetMaxStackSize(runtime, runtime_stack_size);
 
         const context = c.JS_NewContext(runtime) orelse return RuntimeError.ContextCreationFailed;
+        errdefer c.JS_FreeContext(context);
         c.JS_SetRuntimeInfo(runtime, "hondo-official-quickjs");
+
+        const bootstrap = c.JS_Eval(
+            context,
+            runtime_bootstrap.ptr,
+            runtime_bootstrap.len,
+            "hondo-runtime-bootstrap.js",
+            c.JS_EVAL_TYPE_GLOBAL,
+        );
+        defer c.JS_FreeValue(context, bootstrap);
+        if (c.JS_IsException(bootstrap) != 0) {
+            dumpException(context);
+            return RuntimeError.BootstrapFailed;
+        }
 
         return .{
             .runtime = runtime,
@@ -296,5 +324,37 @@ test "QuickJS host bridge turns invalid scene mutations into JavaScript exceptio
             "__hondoHostCall('removeNode', 0, 99);",
             "hondo-host-invalid.js",
         ),
+    );
+}
+
+test "bundled Solid counter preserves native text identity across reactive update" {
+    const counter_bundle = @embedFile("../generated/counter.js");
+
+    var scene = try scene_module.Scene.init(std.testing.allocator);
+    defer scene.deinit();
+
+    var runtime = try Runtime.init();
+    defer runtime.deinit();
+    try runtime.installSceneBridge(&scene);
+
+    try runtime.eval(counter_bundle, "hondo-counter.js");
+
+    const text_node_id: scene_module.NodeId = 2;
+    const mounted = try scene.getNode(text_node_id);
+    try std.testing.expectEqual(text_node_id, mounted.id);
+    try std.testing.expectEqualStrings("Count: 0", mounted.text.?);
+
+    try runtime.eval(
+        "globalThis.__hondoCounterIncrement();",
+        "hondo-counter-increment.js",
+    );
+
+    const updated = try scene.getNode(text_node_id);
+    try std.testing.expectEqual(text_node_id, updated.id);
+    try std.testing.expectEqualStrings("Count: 1", updated.text.?);
+
+    try runtime.eval(
+        "globalThis.__hondoCounterDispose();",
+        "hondo-counter-dispose.js",
     );
 }

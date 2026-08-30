@@ -47,7 +47,7 @@ jobs:
       - name: Check Zig formatting
         run: zig fmt --check zig build.zig
 
-      - name: Test Zig
+      - name: Test Zig and embedded Solid bundle
         run: zig build test
 
       - name: Typecheck TypeScript
