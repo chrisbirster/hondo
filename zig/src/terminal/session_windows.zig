@@ -19,8 +19,8 @@ pub const Session = struct {
     active: bool = true,
 
     pub fn begin(input_fd: c_int, output_fd: c_int) SessionError!Session {
-        const input_handle = handleForFd(input_fd) orelse return SessionError.InvalidHandle;
-        const output_handle = handleForFd(output_fd) orelse return SessionError.InvalidHandle;
+        const input_handle = try handleForFd(input_fd);
+        const output_handle = try handleForFd(output_fd);
 
         // The CRT's _isatty() is not authoritative for modern Windows terminal
         // attachment. In particular, a process attached through ConPTY can have
@@ -62,13 +62,14 @@ pub const Session = struct {
 };
 
 pub fn isTerminal(fd: c_int) bool {
-    const handle = handleForFd(fd) orelse return false;
+    const handle = handleForFd(fd) catch return false;
     var mode: c.DWORD = 0;
     return c.GetConsoleMode(handle, &mode) != 0;
 }
 
-fn handleForFd(fd: c_int) ?c.HANDLE {
+fn handleForFd(fd: c_int) SessionError!c.HANDLE {
     const os_handle = c._get_osfhandle(fd);
-    if (os_handle == -1) return null;
-    return @ptrFromInt(@as(usize, @intCast(os_handle)));
+    if (os_handle == -1) return SessionError.InvalidHandle;
+    const handle: c.HANDLE = @ptrFromInt(@as(usize, @intCast(os_handle)));
+    return handle;
 }
