@@ -1,0 +1,3 @@
+zig/src/render/scene_renderer.zig:52:26: error: expected type expression, found 'align'
+    padding: Edges = .{},
+                         ^
