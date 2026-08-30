@@ -51,7 +51,17 @@ jobs:
           PY
 
           zig fmt zig build.zig
+          set +e
           zig build test
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo '--- Solid runEffect around line 2311 ---'
+            nl -ba zig/src/generated/counter.js | sed -n '2298,2320p'
+            echo '--- Hondo primitive around line 2923 ---'
+            nl -ba zig/src/generated/counter.js | sed -n '2908,2932p'
+            exit "$status"
+          fi
 
           git config user.name "hondo-ci"
           git config user.email "actions@users.noreply.github.com"
