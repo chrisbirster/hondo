@@ -63,7 +63,7 @@ const CounterApp = struct {
     fn render(self: *CounterApp) !void {
         const grid = self.renderer.grid();
         try hondo.scene_renderer.render(self.scene, grid);
-        grid.paintUtf8(0, 1, instructions, grid.width);
+        try grid.paintUtf8(0, 1, instructions, grid.width);
     }
 
     fn resize(self: *CounterApp, width: usize, height: usize) !bool {

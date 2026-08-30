@@ -40,12 +40,31 @@ pub fn encodeDiff(
                 continue;
             }
 
-            const run_start = x;
-            while (x < current.width and !cellsEqual(previous, current, x, y)) : (x += 1) {}
+            var run_start = @min(glyphStart(previous, x, y), glyphStart(current, x, y));
+            var run_end = @max(glyphEnd(previous, x, y), glyphEnd(current, x, y));
+            x += 1;
+
+            while (x < current.width) {
+                if (x < run_end) {
+                    if (!cellsEqual(previous, current, x, y)) {
+                        run_start = @min(run_start, @min(glyphStart(previous, x, y), glyphStart(current, x, y)));
+                        run_end = @max(run_end, @max(glyphEnd(previous, x, y), glyphEnd(current, x, y)));
+                    }
+                    x += 1;
+                    continue;
+                }
+
+                if (cellsEqual(previous, current, x, y)) break;
+                const next_start = @min(glyphStart(previous, x, y), glyphStart(current, x, y));
+                if (next_start > run_end) break;
+                run_start = @min(run_start, next_start);
+                run_end = @max(run_end, @max(glyphEnd(previous, x, y), glyphEnd(current, x, y)));
+                x += 1;
+            }
 
             try appendCursorPosition(allocator, &output, y + 1, run_start + 1);
-            for (run_start..x) |run_x| {
-                try appendCodepoint(allocator, &output, current.get(run_x, y).?.codepoint);
+            for (run_start..run_end) |run_x| {
+                try appendCell(allocator, &output, current.get(run_x, y).?);
             }
         }
     }
@@ -59,7 +78,20 @@ fn cellsEqual(
     x: usize,
     y: usize,
 ) bool {
-    return previous.get(x, y).?.codepoint == current.get(x, y).?.codepoint;
+    return previous.get(x, y).?.eql(current.get(x, y).?);
+}
+
+fn glyphStart(grid: *const cell_grid.CellGrid, x: usize, y: usize) usize {
+    const cell = grid.get(x, y).?;
+    if (cell.kind == .continuation and x > 0) return x - 1;
+    return x;
+}
+
+fn glyphEnd(grid: *const cell_grid.CellGrid, x: usize, y: usize) usize {
+    const start = glyphStart(grid, x, y);
+    const lead = grid.get(start, y).?;
+    if (lead.kind == .lead and lead.width == 2) return @min(start + 2, grid.width);
+    return @min(start + 1, grid.width);
 }
 
 fn appendCursorPosition(
@@ -73,24 +105,23 @@ fn appendCursorPosition(
     try output.appendSlice(allocator, sequence);
 }
 
-fn appendCodepoint(
+fn appendCell(
     allocator: std.mem.Allocator,
     output: *std.ArrayList(u8),
-    codepoint: u21,
+    cell: cell_grid.Cell,
 ) !void {
-    var buffer: [4]u8 = undefined;
-    const len = std.unicode.utf8Encode(codepoint, &buffer) catch {
-        try output.appendSlice(allocator, "�");
-        return;
-    };
-    try output.appendSlice(allocator, buffer[0..len]);
+    switch (cell.kind) {
+        .empty => try output.append(allocator, ' '),
+        .lead => try output.appendSlice(allocator, cell.grapheme),
+        .continuation => {},
+    }
 }
 
 test "terminal frame redraws every cell-grid row from home" {
     var grid = try cell_grid.CellGrid.init(std.testing.allocator, 4, 2);
     defer grid.deinit();
-    grid.paintUtf8(0, 0, "Hi", 4);
-    grid.paintUtf8(1, 1, "λ", 3);
+    try grid.paintUtf8(0, 0, "Hi", 4);
+    try grid.paintUtf8(1, 1, "λ", 3);
 
     const bytes = try encode(std.testing.allocator, &grid);
     defer std.testing.allocator.free(bytes);
@@ -107,9 +138,9 @@ test "terminal diff emits only contiguous changed cell runs" {
     var current = try cell_grid.CellGrid.init(std.testing.allocator, 5, 2);
     defer current.deinit();
 
-    current.paintUtf8(1, 0, "AB", 2);
-    current.set(4, 0, 'Z');
-    current.set(0, 1, 'λ');
+    try current.paintUtf8(1, 0, "AB", 2);
+    try current.set(4, 0, 'Z');
+    try current.set(0, 1, 'λ');
 
     const bytes = try encodeDiff(std.testing.allocator, &previous, &current);
     defer std.testing.allocator.free(bytes);
@@ -122,6 +153,34 @@ test "terminal diff emits only contiguous changed cell runs" {
     const unchanged = try encodeDiff(std.testing.allocator, &previous, &current);
     defer std.testing.allocator.free(unchanged);
     try std.testing.expectEqualStrings("", unchanged);
+}
+
+test "terminal diff replaces a wide glyph with narrow text without stale continuation" {
+    var previous = try cell_grid.CellGrid.init(std.testing.allocator, 4, 1);
+    defer previous.deinit();
+    var current = try cell_grid.CellGrid.init(std.testing.allocator, 4, 1);
+    defer current.deinit();
+
+    try previous.paintUtf8(0, 0, "界", 4);
+    try current.paintUtf8(0, 0, "A", 4);
+
+    const bytes = try encodeDiff(std.testing.allocator, &previous, &current);
+    defer std.testing.allocator.free(bytes);
+    try std.testing.expectEqualStrings("\x1b[1;1HA ", bytes);
+}
+
+test "terminal diff never starts inside a wide grapheme" {
+    var previous = try cell_grid.CellGrid.init(std.testing.allocator, 4, 1);
+    defer previous.deinit();
+    var current = try cell_grid.CellGrid.init(std.testing.allocator, 4, 1);
+    defer current.deinit();
+
+    try previous.paintUtf8(0, 0, "界", 4);
+    try current.paintUtf8(0, 0, "語", 4);
+
+    const bytes = try encodeDiff(std.testing.allocator, &previous, &current);
+    defer std.testing.allocator.free(bytes);
+    try std.testing.expectEqualStrings("\x1b[1;1H語", bytes);
 }
 
 test "terminal diff rejects grids with different dimensions" {
