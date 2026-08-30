@@ -69,10 +69,10 @@ pub fn build(b: *std.Build) void {
         "--format=iife",
         "--target=es2020",
         "--conditions=browser,development",
-        "--outfile=examples/counter/dist/counter.js",
+        "--outfile=zig/src/generated/counter.js",
     });
 
-    const js_step = b.step("js", "Build Hondo JavaScript bundles");
+    const js_step = b.step("js", "Build Hondo JavaScript bundles for the embedded runtime");
     js_step.dependOn(&build_counter_bundle.step);
 
     const hondo = b.addModule("hondo", .{
