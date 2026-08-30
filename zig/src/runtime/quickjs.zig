@@ -300,7 +300,7 @@ test "QuickJS host bridge turns invalid scene mutations into JavaScript exceptio
 }
 
 test "bundled Solid counter preserves native text identity across reactive update" {
-    const counter_bundle = @embedFile("../../../examples/counter/dist/counter.js");
+    const counter_bundle = @embedFile("../generated/counter.js");
 
     var scene = try scene_module.Scene.init(std.testing.allocator);
     defer scene.deinit();
