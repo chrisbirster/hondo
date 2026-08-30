@@ -4,6 +4,7 @@ pub const quickjs = @import("quickjs.zig");
 pub const runtime = @import("runtime/quickjs.zig");
 pub const native_events = @import("runtime/native_events.zig");
 pub const scene = @import("scene.zig");
+pub const style = @import("render/style.zig");
 pub const cell_grid = @import("render/cell_grid.zig");
 pub const scene_renderer = @import("render/scene_renderer.zig");
 pub const terminal = @import("terminal/mod.zig");
@@ -24,6 +25,7 @@ test {
     _ = runtime;
     _ = native_events;
     _ = scene;
+    _ = style;
     _ = cell_grid;
     _ = scene_renderer;
     _ = terminal;

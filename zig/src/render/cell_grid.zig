@@ -1,5 +1,6 @@
 const std = @import("std");
 const uucode = @import("uucode");
+const style_module = @import("style.zig");
 
 pub const GridError = error{
     DimensionMismatch,
@@ -15,10 +16,12 @@ pub const Cell = struct {
     kind: CellKind = .empty,
     grapheme: []const u8 = "",
     width: u2 = 1,
+    style: style_module.Style = .{},
 
     pub fn eql(self: Cell, other: Cell) bool {
         return self.kind == other.kind and
             self.width == other.width and
+            self.style.eql(other.style) and
             std.mem.eql(u8, self.grapheme, other.grapheme);
     }
 };
@@ -73,14 +76,29 @@ pub const CellGrid = struct {
     }
 
     pub fn set(self: *CellGrid, x: usize, y: usize, codepoint: u21) !void {
+        return self.setStyled(x, y, codepoint, .{});
+    }
+
+    pub fn setStyled(self: *CellGrid, x: usize, y: usize, codepoint: u21, style: style_module.Style) !void {
         var buffer: [4]u8 = undefined;
         const len = std.unicode.utf8Encode(codepoint, &buffer) catch {
-            return self.setGrapheme(x, y, "�", 1);
+            return self.setGraphemeStyled(x, y, "�", 1, style);
         };
-        try self.setGrapheme(x, y, buffer[0..len], 1);
+        try self.setGraphemeStyled(x, y, buffer[0..len], 1, style);
     }
 
     pub fn setGrapheme(self: *CellGrid, x: usize, y: usize, grapheme: []const u8, display_width: usize) !void {
+        return self.setGraphemeStyled(x, y, grapheme, display_width, .{});
+    }
+
+    pub fn setGraphemeStyled(
+        self: *CellGrid,
+        x: usize,
+        y: usize,
+        grapheme: []const u8,
+        display_width: usize,
+        style: style_module.Style,
+    ) !void {
         if (x >= self.width or y >= self.height) return;
         if (display_width == 0) {
             try self.appendZeroWidth(x, y, grapheme);
@@ -98,11 +116,13 @@ pub const CellGrid = struct {
             .kind = .lead,
             .grapheme = bytes,
             .width = @intCast(width),
+            .style = style,
         };
         if (width == 2) {
             self.cells[y * self.width + x + 1] = .{
                 .kind = .continuation,
                 .width = 0,
+                .style = style,
             };
         }
     }
@@ -113,13 +133,24 @@ pub const CellGrid = struct {
     }
 
     pub fn paintUtf8(self: *CellGrid, start_x: usize, y: usize, text: []const u8, max_width: usize) !void {
+        return self.paintUtf8Styled(start_x, y, text, max_width, .{});
+    }
+
+    pub fn paintUtf8Styled(
+        self: *CellGrid,
+        start_x: usize,
+        y: usize,
+        text: []const u8,
+        max_width: usize,
+        style: style_module.Style,
+    ) !void {
         if (y >= self.height or start_x >= self.width or max_width == 0) return;
 
         if (!std.unicode.utf8ValidateSlice(text)) {
             var byte_index: usize = 0;
             var column: usize = 0;
             while (byte_index < text.len and column < max_width and start_x + column < self.width) : (byte_index += 1) {
-                try self.setGrapheme(start_x + column, y, "�", 1);
+                try self.setGraphemeStyled(start_x + column, y, "�", 1, style);
                 column += 1;
             }
             return;
@@ -129,14 +160,14 @@ pub const CellGrid = struct {
         var column: usize = 0;
         while (iterator.nextGrapheme()) |range| {
             const grapheme = text[range.start..range.end];
-            const width = graphemeDisplayWidth(grapheme);
-            if (width == 0) {
+            const glyph_width = graphemeDisplayWidth(grapheme);
+            if (glyph_width == 0) {
                 if (column > 0) try self.appendZeroWidth(start_x + column - 1, y, grapheme);
                 continue;
             }
-            if (column + width > max_width or start_x + column + width > self.width) break;
-            try self.setGrapheme(start_x + column, y, grapheme, width);
-            column += width;
+            if (column + glyph_width > max_width or start_x + column + glyph_width > self.width) break;
+            try self.setGraphemeStyled(start_x + column, y, grapheme, glyph_width, style);
+            column += glyph_width;
         }
     }
 
@@ -237,6 +268,16 @@ test "cell grid paints UTF-8 graphemes and clips at the grid boundary" {
     try std.testing.expectEqualStrings(" AλBC", row);
 }
 
+test "cell equality includes terminal style" {
+    var grid = try CellGrid.init(std.testing.allocator, 2, 1);
+    defer grid.deinit();
+    try grid.paintUtf8Styled(0, 0, "A", 1, .{ .attributes = .{ .bold = true } });
+
+    const styled = grid.get(0, 0).?;
+    const plain = Cell{ .kind = .lead, .grapheme = "A", .width = 1 };
+    try std.testing.expect(!styled.eql(plain));
+}
+
 test "combining marks stay attached to their base grapheme" {
     var grid = try CellGrid.init(std.testing.allocator, 4, 1);
     defer grid.deinit();
@@ -251,14 +292,16 @@ test "combining marks stay attached to their base grapheme" {
     try std.testing.expectEqualStrings("e\u{301}x  ", row);
 }
 
-test "wide graphemes reserve a continuation cell" {
+test "wide graphemes reserve a styled continuation cell" {
     var grid = try CellGrid.init(std.testing.allocator, 4, 1);
     defer grid.deinit();
 
-    try grid.paintUtf8(0, 0, "界A", 4);
+    const glyph_style = style_module.Style{ .foreground = .{ .ansi = 1 } };
+    try grid.paintUtf8Styled(0, 0, "界A", 4, glyph_style);
     try std.testing.expectEqual(@as(usize, 3), displayWidth("界A"));
     try std.testing.expectEqual(@as(u2, 2), grid.get(0, 0).?.width);
     try std.testing.expectEqual(CellKind.continuation, grid.get(1, 0).?.kind);
+    try std.testing.expect(grid.get(1, 0).?.style.eql(glyph_style));
     try std.testing.expectEqualStrings("A", grid.get(2, 0).?.grapheme);
 }
 

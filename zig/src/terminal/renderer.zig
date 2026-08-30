@@ -1,14 +1,25 @@
 const std = @import("std");
 const cell_grid = @import("../render/cell_grid.zig");
+const capabilities = @import("capabilities.zig");
 const frame = @import("frame.zig");
 
 pub const Renderer = struct {
     allocator: std.mem.Allocator,
     current: cell_grid.CellGrid,
     previous: cell_grid.CellGrid,
+    capabilities: capabilities.Capabilities,
     invalidated: bool = true,
 
     pub fn init(allocator: std.mem.Allocator, width: usize, height: usize) !Renderer {
+        return initWithCapabilities(allocator, width, height, capabilities.detectEnvironment());
+    }
+
+    pub fn initWithCapabilities(
+        allocator: std.mem.Allocator,
+        width: usize,
+        height: usize,
+        caps: capabilities.Capabilities,
+    ) !Renderer {
         var current = try cell_grid.CellGrid.init(allocator, width, height);
         errdefer current.deinit();
         var previous = try cell_grid.CellGrid.init(allocator, width, height);
@@ -18,6 +29,7 @@ pub const Renderer = struct {
             .allocator = allocator,
             .current = current,
             .previous = previous,
+            .capabilities = caps,
         };
     }
 
@@ -53,9 +65,9 @@ pub const Renderer = struct {
 
     pub fn encode(self: *Renderer) ![]u8 {
         const bytes = if (self.invalidated)
-            try frame.encode(self.allocator, &self.current)
+            try frame.encodeWithCapabilities(self.allocator, &self.current, self.capabilities)
         else
-            try frame.encodeDiff(self.allocator, &self.previous, &self.current);
+            try frame.encodeDiffWithCapabilities(self.allocator, &self.previous, &self.current, self.capabilities);
         errdefer self.allocator.free(bytes);
 
         try self.previous.copyFrom(&self.current);
@@ -65,7 +77,7 @@ pub const Renderer = struct {
 };
 
 test "renderer sends a full frame once then incremental cell diffs" {
-    var renderer = try Renderer.init(std.testing.allocator, 4, 1);
+    var renderer = try Renderer.initWithCapabilities(std.testing.allocator, 4, 1, capabilities.Capabilities.full());
     defer renderer.deinit();
 
     try renderer.grid().paintUtf8(0, 0, "A", 4);
@@ -85,7 +97,7 @@ test "renderer sends a full frame once then incremental cell diffs" {
 }
 
 test "renderer resize invalidates the previous frame" {
-    var renderer = try Renderer.init(std.testing.allocator, 4, 1);
+    var renderer = try Renderer.initWithCapabilities(std.testing.allocator, 4, 1, capabilities.Capabilities.full());
     defer renderer.deinit();
 
     const initial = try renderer.encode();
@@ -97,4 +109,11 @@ test "renderer resize invalidates the previous frame" {
     const bytes = try renderer.encode();
     defer std.testing.allocator.free(bytes);
     try std.testing.expectEqualStrings("\x1b[H\x1b[2KC ", bytes);
+}
+
+test "renderer snapshots capabilities at construction" {
+    const caps = capabilities.Capabilities{ .color_depth = .mono };
+    var renderer = try Renderer.initWithCapabilities(std.testing.allocator, 1, 1, caps);
+    defer renderer.deinit();
+    try std.testing.expectEqual(capabilities.ColorDepth.mono, renderer.capabilities.color_depth);
 }
