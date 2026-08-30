@@ -94,7 +94,7 @@ fn jsHostCall(
 ) callconv(.c) c.JSValue {
     _ = this_value;
 
-    const context = maybe_context orelse return c.JS_EXCEPTION;
+    const context = maybe_context orelse unreachable;
     if (argc < 1) return c.JS_ThrowTypeError(context, "Hondo host operation is required");
 
     const scene_opaque = c.JS_GetContextOpaque(context) orelse
@@ -102,7 +102,7 @@ fn jsHostCall(
     const scene: *scene_module.Scene = @ptrCast(@alignCast(scene_opaque));
 
     const operation_raw = c.JS_ToCString(context, argv[0]);
-    if (operation_raw == null) return c.JS_EXCEPTION;
+    if (operation_raw == null) return stringConversionFailed(context);
     defer c.JS_FreeCString(context, operation_raw);
     const operation_z: [*:0]const u8 = @ptrCast(operation_raw);
     const operation = std.mem.span(operation_z);
@@ -111,7 +111,7 @@ fn jsHostCall(
         if (argc < 3) return invalidArguments(context);
         const id = readNodeId(context, argv[1]) orelse return invalidArguments(context);
         const type_raw = c.JS_ToCString(context, argv[2]);
-        if (type_raw == null) return c.JS_EXCEPTION;
+        if (type_raw == null) return stringConversionFailed(context);
         defer c.JS_FreeCString(context, type_raw);
         const type_z: [*:0]const u8 = @ptrCast(type_raw);
         scene.createElement(id, std.mem.span(type_z)) catch return hostOperationFailed(context);
@@ -122,7 +122,7 @@ fn jsHostCall(
         if (argc < 3) return invalidArguments(context);
         const id = readNodeId(context, argv[1]) orelse return invalidArguments(context);
         const value_raw = c.JS_ToCString(context, argv[2]);
-        if (value_raw == null) return c.JS_EXCEPTION;
+        if (value_raw == null) return stringConversionFailed(context);
         defer c.JS_FreeCString(context, value_raw);
         const value_z: [*:0]const u8 = @ptrCast(value_raw);
         scene.createText(id, std.mem.span(value_z)) catch return hostOperationFailed(context);
@@ -133,7 +133,7 @@ fn jsHostCall(
         if (argc < 3) return invalidArguments(context);
         const id = readNodeId(context, argv[1]) orelse return invalidArguments(context);
         const value_raw = c.JS_ToCString(context, argv[2]);
-        if (value_raw == null) return c.JS_EXCEPTION;
+        if (value_raw == null) return stringConversionFailed(context);
         defer c.JS_FreeCString(context, value_raw);
         const value_z: [*:0]const u8 = @ptrCast(value_raw);
         scene.replaceText(id, std.mem.span(value_z)) catch return hostOperationFailed(context);
@@ -144,10 +144,10 @@ fn jsHostCall(
         if (argc < 4) return invalidArguments(context);
         const id = readNodeId(context, argv[1]) orelse return invalidArguments(context);
         const name_raw = c.JS_ToCString(context, argv[2]);
-        if (name_raw == null) return c.JS_EXCEPTION;
+        if (name_raw == null) return stringConversionFailed(context);
         defer c.JS_FreeCString(context, name_raw);
         const value_raw = c.JS_ToCString(context, argv[3]);
-        if (value_raw == null) return c.JS_EXCEPTION;
+        if (value_raw == null) return stringConversionFailed(context);
         defer c.JS_FreeCString(context, value_raw);
         const name_z: [*:0]const u8 = @ptrCast(name_raw);
         const value_z: [*:0]const u8 = @ptrCast(value_raw);
@@ -190,6 +190,10 @@ fn readNodeId(context: *c.JSContext, value: c.JSValueConst) ?scene_module.NodeId
 
 fn invalidArguments(context: *c.JSContext) c.JSValue {
     return c.JS_ThrowTypeError(context, "Invalid Hondo host operation arguments");
+}
+
+fn stringConversionFailed(context: *c.JSContext) c.JSValue {
+    return c.JS_ThrowTypeError(context, "Hondo host string conversion failed");
 }
 
 fn hostOperationFailed(context: *c.JSContext) c.JSValue {
