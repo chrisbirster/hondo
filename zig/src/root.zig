@@ -1,6 +1,9 @@
 const std = @import("std");
 
 pub const quickjs = @import("quickjs.zig");
+pub const runtime = struct {
+    pub const quickjs = @import("runtime/quickjs.zig");
+};
 pub const version = "0.1.0-alpha.0";
 
 pub const RuntimeBoundary = enum {
@@ -15,4 +18,5 @@ test "foundation exposes a version" {
 
 test {
     _ = quickjs;
+    _ = runtime.quickjs;
 }
