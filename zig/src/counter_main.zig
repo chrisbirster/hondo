@@ -8,7 +8,6 @@ const grid_height = 3;
 const resize_poll_ms = 50;
 const sequence_wait_ms = 10;
 const instructions = "Enter/Space: increment  q/Esc/Ctrl-C: quit";
-const counter_focus_node_id: hondo.scene.NodeId = 1;
 
 const CounterError = error{
     SmokeAssertionFailed,
@@ -35,18 +34,15 @@ const CounterApp = struct {
         var renderer = try hondo.terminal.renderer.Renderer.init(allocator, width, height);
         errdefer renderer.deinit();
 
-        var focus = hondo.focus.Manager{};
-        if (try focus.set(scene, counter_focus_node_id)) |change| {
-            try hondo.input_events.dispatchFocusChange(&runtime, change);
-        }
-
-        return .{
+        var app = CounterApp{
             .allocator = allocator,
             .scene = scene,
             .runtime = runtime,
             .renderer = renderer,
-            .focus = focus,
+            .focus = .{},
         };
+        try app.syncFocus();
+        return app;
     }
 
     fn deinit(self: *CounterApp) void {
@@ -72,9 +68,18 @@ const CounterApp = struct {
         );
     }
 
+    fn syncFocus(self: *CounterApp) !void {
+        if (try self.focus.syncRequested(self.scene)) |change| {
+            try hondo.input_events.dispatchFocusChange(&self.runtime, change);
+        }
+    }
+
     fn dispatchInput(self: *CounterApp, event: hondo.terminal.input.Event) !hondo.node_events.Result {
+        try self.syncFocus();
         const target = self.focus.target() orelse return .{ .default_prevented = false };
-        return hondo.input_events.dispatch(self.allocator, &self.runtime, target, event);
+        const result = try hondo.input_events.dispatch(self.allocator, &self.runtime, target, event);
+        try self.syncFocus();
+        return result;
     }
 
     fn render(self: *CounterApp) !void {
