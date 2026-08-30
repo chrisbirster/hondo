@@ -29,9 +29,11 @@ describe('Hondo primitive components', () => {
     const elementTypes = mutations
       .filter(mutation => mutation.kind === 'createElement')
       .map(mutation => mutation.type);
-    const styleValues = mutations
-      .filter(mutation => mutation.kind === 'setProperty' && mutation.name === 'style')
-      .map(mutation => mutation.value);
+    const styleValues = mutations.flatMap(mutation =>
+      mutation.kind === 'setProperty' && mutation.name === 'style'
+        ? [mutation.value]
+        : [],
+    );
 
     expect({ elementTypes, styleValues }).toMatchInlineSnapshot(`
       {
