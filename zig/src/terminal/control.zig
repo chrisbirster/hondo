@@ -6,6 +6,7 @@ pub const hide_cursor = "\x1b[?25l";
 pub const show_cursor = "\x1b[?25h";
 pub const home = "\x1b[H";
 pub const clear_screen = "\x1b[2J";
+pub const clear_line = "\x1b[2K";
 pub const reset_style = "\x1b[0m";
 
 pub fn beginSequence(allocator: std.mem.Allocator) ![]u8 {
