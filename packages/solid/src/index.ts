@@ -66,6 +66,6 @@ export function render(code: () => unknown, root: HondoNode): () => void {
 export { createSignal } from 'solid-js';
 
 export const solid2Baseline = {
-  core: '2.0.0-rc.1',
-  universal: '2.0.0-rc.0',
+  core: '2.0.0-rc.4',
+  universal: '2.0.0-rc.4',
 } as const;
