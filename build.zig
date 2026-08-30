@@ -4,6 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const quickjs_source = b.dependency("quickjs_source", .{});
+    const is_windows = target.result.os.tag == .windows;
 
     const quickjs = b.addLibrary(.{
         .name = "quickjs",
@@ -18,26 +19,18 @@ pub fn build(b: *std.Build) void {
     quickjs.root_module.addIncludePath(quickjs_source.path("."));
     quickjs.root_module.addCMacro("_GNU_SOURCE", "1");
     quickjs.root_module.addCMacro("CONFIG_VERSION", "\"2026-06-04\"");
-    if (target.result.os.tag == .windows) {
+    if (is_windows) {
         quickjs.root_module.addCMacro("__USE_MINGW_ANSI_STDIO", "1");
-        // QuickJS 2026-06-04 introduced a small-block arena allocator. Under
-        // Zig 0.16's native Windows C toolchain that allocator crashes while
-        // initializing atoms in JS_NewRuntime(). QuickJS already has a tested
-        // host-malloc path for sanitizer builds; select that path on Windows
-        // until the upstream arena implementation is portable to this ABI.
-        // This changes allocation strategy only, not JavaScript semantics.
-        quickjs.root_module.addCMacro("__SANITIZE_ADDRESS__", "1");
     }
-    quickjs.root_module.addCSourceFiles(.{
-        .root = quickjs_source.path("."),
-        .files = &.{
-            "quickjs.c",
-            "dtoa.c",
-            "libregexp.c",
-            "libunicode.c",
-            "cutils.c",
-        },
-        .flags = &.{
+
+    const quickjs_c_flags: []const []const u8 = if (is_windows)
+        &.{
+            // QuickJS 2026-06-04's new small-block arena crashes during
+            // JS_NewRuntime() under Zig 0.16's native Windows ABI. The source
+            // selects its host-malloc path when this translation-unit macro is
+            // present. Put it in the C flags (not only module macros) so the
+            // upstream quickjs.c preprocessor condition definitely sees it.
+            "-D__SANITIZE_ADDRESS__=1",
             "-fwrapv",
             "-funsigned-char",
             "-Wno-implicit-fallthrough",
@@ -47,7 +40,30 @@ pub fn build(b: *std.Build) void {
             "-Wno-unused-but-set-variable",
             "-Wno-array-bounds",
             "-Wno-format-truncation",
+        }
+    else
+        &.{
+            "-fwrapv",
+            "-funsigned-char",
+            "-Wno-implicit-fallthrough",
+            "-Wno-sign-compare",
+            "-Wno-missing-field-initializers",
+            "-Wno-unused-parameter",
+            "-Wno-unused-but-set-variable",
+            "-Wno-array-bounds",
+            "-Wno-format-truncation",
+        };
+
+    quickjs.root_module.addCSourceFiles(.{
+        .root = quickjs_source.path("."),
+        .files = &.{
+            "quickjs.c",
+            "dtoa.c",
+            "libregexp.c",
+            "libunicode.c",
+            "cutils.c",
         },
+        .flags = quickjs_c_flags,
     });
 
     const hondo = b.addModule("hondo", .{
