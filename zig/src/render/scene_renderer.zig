@@ -47,7 +47,7 @@ pub const LayoutStyle = struct {
     max_height: ?usize = null,
     basis: ?usize = null,
     grow: usize = 0,
-    shrink: usize = 1,
+    shrink: usize = 0,
     gap: usize = 0,
     padding: Edges = .{},
     alignment: Align = .stretch,
@@ -426,7 +426,7 @@ fn styleForNode(
     style.max_height = jsonUnsignedValue(json, "maxHeight");
     style.basis = jsonUnsignedValue(json, "basis");
     style.grow = jsonUnsignedValue(json, "grow") orelse 0;
-    style.shrink = jsonUnsignedValue(json, "shrink") orelse 1;
+    style.shrink = jsonUnsignedValue(json, "shrink") orelse 0;
     style.gap = jsonUnsignedValue(json, "gap") orelse 0;
     style.padding = paddingValue(json);
     style.alignment = jsonAlignValue(json, "align") orelse .stretch;
