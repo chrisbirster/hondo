@@ -1,5 +1,6 @@
 const std = @import("std");
 
+pub const quickjs = @import("quickjs.zig");
 pub const version = "0.1.0-alpha.0";
 
 pub const RuntimeBoundary = enum {
@@ -10,4 +11,8 @@ pub const RuntimeBoundary = enum {
 
 test "foundation exposes a version" {
     try std.testing.expect(version.len > 0);
+}
+
+test {
+    _ = quickjs;
 }
