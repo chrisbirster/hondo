@@ -50,6 +50,16 @@ jobs:
       - name: Test Zig and embedded Solid bundle
         run: zig build test
 
+      - name: Run counter executable smoke
+        run: zig build counter-smoke
+
+      - name: Run counter PTY lifecycle smoke
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          zig build install
+          python3 scripts/pty_smoke.py ./zig-out/bin/hondo-counter --once
+
       - name: Typecheck TypeScript
         run: npm run typecheck
 
