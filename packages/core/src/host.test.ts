@@ -73,4 +73,80 @@ describe('HondoHost', () => {
       { kind: 'removeNode', parentId: 0, nodeId: node.id },
     ]);
   });
+
+  it('keeps event handlers local and dispatches capture target and bubble in order', () => {
+    const bridge = new RecordingMutationBridge();
+    const host = new HondoHost(bridge);
+    const parent = host.createElement('box');
+    const child = host.createElement('input');
+    host.insertNode(host.root, parent);
+    host.insertNode(parent, child);
+    bridge.take();
+
+    const calls: string[] = [];
+    host.setProperty(parent, 'onKeyCapture', (event) => {
+      calls.push(`parent:${event.phase}`);
+    });
+    host.setProperty(child, 'onKeyCapture', (event) => {
+      calls.push(`child-capture:${event.phase}`);
+    });
+    host.setProperty(child, 'onKey', (event) => {
+      calls.push(`child:${event.phase}`);
+      event.preventDefault();
+    });
+    host.setProperty(parent, 'onKey', (event) => {
+      calls.push(`parent:${event.phase}`);
+    });
+
+    expect(bridge.take()).toEqual([]);
+    expect(host.getNodeById(child.id)).toBe(child);
+
+    const result = host.dispatchNodeEvent(child.id, 'key', { key: 'Enter' });
+    expect(calls).toEqual([
+      'parent:capture',
+      'child-capture:target',
+      'child:target',
+      'parent:bubble',
+    ]);
+    expect(result.defaultPrevented).toBe(true);
+    expect(result.propagationStopped).toBe(false);
+  });
+
+  it('stops propagation before the target when an ancestor capture handler requests it', () => {
+    const bridge = new RecordingMutationBridge();
+    const host = new HondoHost(bridge);
+    const parent = host.createElement('box');
+    const child = host.createElement('input');
+    host.insertNode(host.root, parent);
+    host.insertNode(parent, child);
+
+    const calls: string[] = [];
+    host.setProperty(parent, 'onMouseCapture', (event) => {
+      calls.push('parent');
+      event.stopPropagation();
+    });
+    host.setProperty(child, 'onMouse', () => calls.push('child'));
+
+    const result = host.dispatchNodeEvent(child.id, 'mouse', { x: 3, y: 4 });
+    expect(calls).toEqual(['parent']);
+    expect(result.propagationStopped).toBe(true);
+  });
+
+  it('replaces and removes event handlers without emitting native property mutations', () => {
+    const bridge = new RecordingMutationBridge();
+    const host = new HondoHost(bridge);
+    const node = host.createElement('input');
+    bridge.take();
+
+    let count = 0;
+    host.setProperty(node, 'onFocusIn', () => {
+      count += 1;
+    });
+    host.dispatchNodeEvent(node.id, 'focusIn', null);
+    host.setProperty(node, 'onFocusIn', null);
+    host.dispatchNodeEvent(node.id, 'focusIn', null);
+
+    expect(count).toBe(1);
+    expect(bridge.take()).toEqual([]);
+  });
 });
