@@ -71,6 +71,14 @@ jobs:
           zig build install
           python scripts/conpty_smoke.py .\zig-out\bin\hondo-counter.exe --once
 
+      - name: Upload Windows ConPTY diagnostics
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-conpty-diagnostics
+          path: conpty-smoke-debug.txt
+          if-no-files-found: ignore
+
       - name: Typecheck TypeScript
         run: npm run typecheck
 
