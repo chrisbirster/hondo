@@ -15,8 +15,8 @@ import {
 describe('Solid 2 baseline', () => {
   it('uses the coordinated Solid 2 RC packages', () => {
     expect(solid2Baseline).toEqual({
-      core: '2.0.0-rc.1',
-      universal: '2.0.0-rc.0',
+      core: '2.0.0-rc.4',
+      universal: '2.0.0-rc.4',
     });
   });
 
@@ -24,6 +24,7 @@ describe('Solid 2 baseline', () => {
     const [count, setCount] = createSignal(0);
     expect(count()).toBe(0);
     setCount(1);
+    flush();
     expect(count()).toBe(1);
   });
 
