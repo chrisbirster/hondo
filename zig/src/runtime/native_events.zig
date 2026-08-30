@@ -16,7 +16,7 @@ pub fn dispatch(
     name: []const u8,
     payload_json: []const u8,
 ) (EventError || quickjs_runtime.RuntimeError)!void {
-    const context = runtime.context;
+    const context: *c.JSContext = @ptrCast(runtime.context);
     const global = c.JS_GetGlobalObject(context);
     defer c.JS_FreeValue(context, global);
 
