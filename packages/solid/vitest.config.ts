@@ -9,5 +9,14 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    server: {
+      deps: {
+        // node_modules are externalized by Vitest by default, which lets Node's
+        // native resolver select Solid's `node`/SSR condition before Vite can
+        // apply Hondo's client conditions. Inline the Solid runtime family so
+        // the Vite module runner resolves the same client build QuickJS will use.
+        inline: [/solid-js/, /@solidjs\//],
+      },
+    },
   },
 });
