@@ -30,7 +30,7 @@ jobs:
           quickjs = Path('zig/src/runtime/quickjs.zig')
           text = quickjs.read_text()
           marker = '''    \\\\  };\n    \\\\}\n;\n'''
-          replacement = '''    \\\\  };\n    \\\\}\n    \\\\if (typeof globalThis.console !== "object" || globalThis.console === null) {\n    \\\\  const noop = function noop() {};\n    \\\\  globalThis.console = {\n    \\\\    log: noop,\n    \\\\    info: noop,\n    \\\\    warn: noop,\n    \\\\    error: noop,\n    \\\\    debug: noop,\n    \\\\  };\n    \\\\}\n;\n'''
+          replacement = '''    \\\\  };\n    \\\\}\n    \\\\if (typeof globalThis.console !== "object" || globalThis.console === null) {\n    \\\\  const noop = function noop() {};\n    \\\\  globalThis.console = new Proxy({}, {\n    \\\\    get: function getConsoleMethod() { return noop; },\n    \\\\  });\n    \\\\}\n;\n'''
           if marker not in text:
               raise SystemExit('quickjs bootstrap marker not found')
           quickjs.write_text(text.replace(marker, replacement, 1))
