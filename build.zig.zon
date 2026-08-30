@@ -9,6 +9,10 @@
             .url = "https://github.com/bellard/quickjs/archive/04be246001599f5995fa2f2d8c91a0f198d3f34c.tar.gz",
             .hash = "N-V-__8AAE90MgBqxwTjYLCBQDt1DwZArGS44ymqkxtY2IOX",
         },
+        .uucode = .{
+            // uucode 0.2.0, pinned to a Zig 0.16-compatible commit.
+            .url = "https://github.com/jacobsandlund/uucode/archive/2826a37a4562284fdacd8fa029d49509cc9bffcd.tar.gz",
+        },
     },
     .paths = .{
         "build.zig",
