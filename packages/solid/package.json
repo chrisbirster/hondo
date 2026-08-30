@@ -12,12 +12,12 @@
   },
   "dependencies": {
     "@hondo/core": "0.1.0-alpha.0",
-    "@solidjs/universal": "2.0.0-rc.0"
+    "@solidjs/universal": "2.0.0-rc.4"
   },
   "peerDependencies": {
-    "solid-js": "2.0.0-rc.1"
+    "solid-js": "2.0.0-rc.4"
   },
   "devDependencies": {
-    "solid-js": "2.0.0-rc.1"
+    "solid-js": "2.0.0-rc.4"
   }
 }
