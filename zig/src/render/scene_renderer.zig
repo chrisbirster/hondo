@@ -50,7 +50,7 @@ pub const LayoutStyle = struct {
     shrink: usize = 1,
     gap: usize = 0,
     padding: Edges = .{},
-    align: Align = .stretch,
+    alignment: Align = .stretch,
     justify: Justify = .start,
     clip: bool = true,
 };
@@ -157,13 +157,13 @@ fn renderNode(
     for (children.items, 0..) |child_layout, index| {
         const cross_available = crossSize(inner, layout_style.direction);
         var cross = crossBase(child_layout.style, child_layout.measured, layout_style.direction);
-        if (layout_style.align == .stretch and explicitCross(child_layout.style, layout_style.direction) == null) {
+        if (layout_style.alignment == .stretch and explicitCross(child_layout.style, layout_style.direction) == null) {
             cross = cross_available;
         }
         if (layout_style.clip) cross = @min(cross, cross_available);
 
         const cross_free = cross_available -| @min(cross, cross_available);
-        const cross_offset = switch (layout_style.align) {
+        const cross_offset = switch (layout_style.alignment) {
             .start, .stretch => 0,
             .center => cross_free / 2,
             .end => cross_free,
@@ -429,7 +429,7 @@ fn styleForNode(
     style.shrink = jsonUnsignedValue(json, "shrink") orelse 1;
     style.gap = jsonUnsignedValue(json, "gap") orelse 0;
     style.padding = paddingValue(json);
-    style.align = jsonAlignValue(json, "align") orelse .stretch;
+    style.alignment = jsonAlignValue(json, "align") orelse .stretch;
     style.justify = jsonJustifyValue(json, "justify") orelse .start;
     style.clip = jsonBoolValue(json, "clip") orelse true;
     return style;
