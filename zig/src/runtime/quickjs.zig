@@ -97,9 +97,9 @@ fn jsHostCall(
     const context = maybe_context orelse return c.JS_EXCEPTION;
     if (argc < 1) return c.JS_ThrowTypeError(context, "Hondo host operation is required");
 
-    const opaque = c.JS_GetContextOpaque(context) orelse
+    const scene_opaque = c.JS_GetContextOpaque(context) orelse
         return c.JS_ThrowInternalError(context, "Hondo scene bridge is not installed");
-    const scene: *scene_module.Scene = @ptrCast(@alignCast(opaque));
+    const scene: *scene_module.Scene = @ptrCast(@alignCast(scene_opaque));
 
     const operation_raw = c.JS_ToCString(context, argv[0]);
     if (operation_raw == null) return c.JS_EXCEPTION;
