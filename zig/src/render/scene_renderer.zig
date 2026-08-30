@@ -100,7 +100,11 @@ fn renderNode(
     }
 }
 
-fn styleForNode(scene: *scene_module.Scene, node_id: scene_module.NodeId, type_name: []const u8) !LayoutStyle {
+fn styleForNode(
+    scene: *scene_module.Scene,
+    node_id: scene_module.NodeId,
+    type_name: []const u8,
+) !LayoutStyle {
     var style = LayoutStyle{};
     if (std.mem.eql(u8, type_name, "row")) style.direction = .row;
     if (std.mem.eql(u8, type_name, "column")) style.direction = .column;
@@ -116,7 +120,10 @@ fn styleForNode(scene: *scene_module.Scene, node_id: scene_module.NodeId, type_n
     return style;
 }
 
-fn terminalStyleForNode(scene: *scene_module.Scene, node_id: scene_module.NodeId) !paint.Style {
+fn terminalStyleForNode(
+    scene: *scene_module.Scene,
+    node_id: scene_module.NodeId,
+) !paint.Style {
     const json = (try scene.getPropertyJson(node_id, "style")) orelse return .{};
     var result = paint.Style{};
     result.foreground = jsonColorValue(json, "foreground") orelse .terminal_default;
@@ -153,9 +160,22 @@ fn jsonColorValue(json: []const u8, key: []const u8) ?paint.Color {
 fn parseColor(value: []const u8) ?paint.Color {
     if (std.ascii.eqlIgnoreCase(value, "default")) return .terminal_default;
     const names = [_][]const u8{
-        "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
-        "bright-black", "bright-red", "bright-green", "bright-yellow",
-        "bright-blue", "bright-magenta", "bright-cyan", "bright-white",
+        "black",
+        "red",
+        "green",
+        "yellow",
+        "blue",
+        "magenta",
+        "cyan",
+        "white",
+        "bright-black",
+        "bright-red",
+        "bright-green",
+        "bright-yellow",
+        "bright-blue",
+        "bright-magenta",
+        "bright-cyan",
+        "bright-white",
     };
     for (names, 0..) |name, index| {
         if (std.ascii.eqlIgnoreCase(value, name)) return .{ .ansi = @intCast(index) };
@@ -285,7 +305,11 @@ test "scene renderer maps terminal colors and attributes from style JSON" {
     defer scene.deinit();
 
     try scene.createText(1, "Hi");
-    try scene.setPropertyJson(1, "style", "{\"foreground\":\"#12abef\",\"background\":4,\"bold\":true,\"underline\":true}");
+    try scene.setPropertyJson(
+        1,
+        "style",
+        "{\"foreground\":\"#12abef\",\"background\":4,\"bold\":true,\"underline\":true}",
+    );
     try scene.insertNode(0, 1, null);
 
     var grid = try cell_grid.CellGrid.init(std.testing.allocator, 2, 1);
@@ -293,7 +317,9 @@ test "scene renderer maps terminal colors and attributes from style JSON" {
     try render(&scene, &grid);
 
     const cell = grid.get(0, 0).?;
-    try std.testing.expect(cell.style.foreground.eql(.{ .rgb = .{ .r = 0x12, .g = 0xab, .b = 0xef } }));
+    try std.testing.expect(cell.style.foreground.eql(.{
+        .rgb = .{ .r = 0x12, .g = 0xab, .b = 0xef },
+    }));
     try std.testing.expect(cell.style.background.eql(.{ .indexed = 4 }));
     try std.testing.expect(cell.style.attributes.bold);
     try std.testing.expect(cell.style.attributes.underline);
