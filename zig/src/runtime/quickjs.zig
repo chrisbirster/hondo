@@ -261,7 +261,7 @@ test "QuickJS host bridge mutates the Zig scene" {
     try runtime.eval(
         \\__hondoHostCall("createElement", 1, "text");
         \\__hondoHostCall("createTextNode", 2, "Count: 0");
-        \\__hondoHostCall("setProperty", 1, "style", "{\\"bold\\":true}");
+        \\__hondoHostCall("setProperty", 1, "style", "{\"bold\":true}");
         \\__hondoHostCall("insertNode", 0, 1, null);
         \\__hondoHostCall("insertNode", 1, 2, null);
         \\__hondoHostCall("replaceText", 2, "Count: 1");
