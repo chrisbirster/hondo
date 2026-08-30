@@ -20,6 +20,13 @@ pub fn build(b: *std.Build) void {
     quickjs.root_module.addCMacro("CONFIG_VERSION", "\"2026-06-04\"");
     if (target.result.os.tag == .windows) {
         quickjs.root_module.addCMacro("__USE_MINGW_ANSI_STDIO", "1");
+        // QuickJS 2026-06-04 introduced a small-block arena allocator. Under
+        // Zig 0.16's native Windows C toolchain that allocator crashes while
+        // initializing atoms in JS_NewRuntime(). QuickJS already has a tested
+        // host-malloc path for sanitizer builds; select that path on Windows
+        // until the upstream arena implementation is portable to this ABI.
+        // This changes allocation strategy only, not JavaScript semantics.
+        quickjs.root_module.addCMacro("__SANITIZE_ADDRESS__", "1");
     }
     quickjs.root_module.addCSourceFiles(.{
         .root = quickjs_source.path("."),
