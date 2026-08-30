@@ -68,7 +68,7 @@ pub fn build(b: *std.Build) void {
         "--platform=neutral",
         "--format=iife",
         "--target=es2020",
-        "--conditions=browser,development",
+        "--conditions=browser",
         "--outfile=zig/src/generated/counter.js",
     });
 
