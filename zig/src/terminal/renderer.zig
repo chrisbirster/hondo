@@ -88,7 +88,8 @@ test "renderer resize invalidates the previous frame" {
     var renderer = try Renderer.init(std.testing.allocator, 4, 1);
     defer renderer.deinit();
 
-    _ = try renderer.encode();
+    const initial = try renderer.encode();
+    std.testing.allocator.free(initial);
     try std.testing.expect(try renderer.resize(2, 1));
     try std.testing.expect(!try renderer.resize(2, 1));
 
