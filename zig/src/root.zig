@@ -7,6 +7,7 @@ pub const node_events = @import("runtime/node_events.zig");
 pub const input_events = @import("runtime/input_events.zig");
 pub const focus = @import("focus.zig");
 pub const scene = @import("scene.zig");
+pub const style = @import("render/style.zig");
 pub const cell_grid = @import("render/cell_grid.zig");
 pub const scene_renderer = @import("render/scene_renderer.zig");
 pub const terminal = @import("terminal/mod.zig");
@@ -30,6 +31,7 @@ test {
     _ = input_events;
     _ = focus;
     _ = scene;
+    _ = style;
     _ = cell_grid;
     _ = scene_renderer;
     _ = terminal;
