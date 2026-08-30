@@ -11,6 +11,11 @@ export {
 } from './bridge.js';
 
 export {
+  registerNativeEvent,
+  type HondoNativeEventHandler,
+} from './events.js';
+
+export {
   HondoHost,
   getHost,
   installHost,
