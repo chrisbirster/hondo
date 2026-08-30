@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HondoHost } from './host.js';
+import { HondoHost, type HondoNodeEvent } from './host.js';
 import { RecordingMutationBridge } from './bridge.js';
 
 describe('HondoHost', () => {
@@ -84,17 +84,17 @@ describe('HondoHost', () => {
     bridge.take();
 
     const calls: string[] = [];
-    host.setProperty(parent, 'onKeyCapture', (event) => {
+    host.setProperty(parent, 'onKeyCapture', (event: HondoNodeEvent) => {
       calls.push(`parent:${event.phase}`);
     });
-    host.setProperty(child, 'onKeyCapture', (event) => {
+    host.setProperty(child, 'onKeyCapture', (event: HondoNodeEvent) => {
       calls.push(`child-capture:${event.phase}`);
     });
-    host.setProperty(child, 'onKey', (event) => {
+    host.setProperty(child, 'onKey', (event: HondoNodeEvent) => {
       calls.push(`child:${event.phase}`);
       event.preventDefault();
     });
-    host.setProperty(parent, 'onKey', (event) => {
+    host.setProperty(parent, 'onKey', (event: HondoNodeEvent) => {
       calls.push(`parent:${event.phase}`);
     });
 
@@ -121,7 +121,7 @@ describe('HondoHost', () => {
     host.insertNode(parent, child);
 
     const calls: string[] = [];
-    host.setProperty(parent, 'onMouseCapture', (event) => {
+    host.setProperty(parent, 'onMouseCapture', (event: HondoNodeEvent) => {
       calls.push('parent');
       event.stopPropagation();
     });
