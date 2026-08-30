@@ -1,4 +1,5 @@
 const std = @import("std");
+const scene_module = @import("../scene.zig");
 
 const c = @cImport({
     @cInclude("quickjs.h");
@@ -7,6 +8,7 @@ const c = @cImport({
 pub const RuntimeError = error{
     RuntimeCreationFailed,
     ContextCreationFailed,
+    HostBridgeInstallFailed,
     EvaluationFailed,
     PendingJobFailed,
 };
@@ -29,9 +31,30 @@ pub const Runtime = struct {
     }
 
     pub fn deinit(self: *Runtime) void {
+        c.JS_SetContextOpaque(self.context, null);
         c.JS_FreeContext(self.context);
         c.JS_FreeRuntime(self.runtime);
         self.* = undefined;
+    }
+
+    pub fn installSceneBridge(self: *Runtime, scene: *scene_module.Scene) RuntimeError!void {
+        c.JS_SetContextOpaque(self.context, scene);
+
+        const global = c.JS_GetGlobalObject(self.context);
+        defer c.JS_FreeValue(self.context, global);
+
+        const host_call = c.JS_NewCFunction2(
+            self.context,
+            jsHostCall,
+            "__hondoHostCall",
+            4,
+            c.JS_CFUNC_generic,
+            0,
+        );
+        if (c.JS_SetPropertyStr(self.context, global, "__hondoHostCall", host_call) < 0) {
+            c.JS_SetContextOpaque(self.context, null);
+            return RuntimeError.HostBridgeInstallFailed;
+        }
     }
 
     pub fn eval(self: *Runtime, source: []const u8, filename: [*:0]const u8) RuntimeError!void {
@@ -62,6 +85,120 @@ pub const Runtime = struct {
         }
     }
 };
+
+fn jsHostCall(
+    maybe_context: ?*c.JSContext,
+    this_value: c.JSValueConst,
+    argc: c_int,
+    argv: [*c]c.JSValueConst,
+) callconv(.c) c.JSValue {
+    _ = this_value;
+
+    const context = maybe_context orelse unreachable;
+    if (argc < 1) return c.JS_ThrowTypeError(context, "Hondo host operation is required");
+
+    const scene_opaque = c.JS_GetContextOpaque(context) orelse
+        return c.JS_ThrowInternalError(context, "Hondo scene bridge is not installed");
+    const scene: *scene_module.Scene = @ptrCast(@alignCast(scene_opaque));
+
+    const operation_raw = c.JS_ToCString(context, argv[0]);
+    if (operation_raw == null) return stringConversionFailed(context);
+    defer c.JS_FreeCString(context, operation_raw);
+    const operation_z: [*:0]const u8 = @ptrCast(operation_raw);
+    const operation = std.mem.span(operation_z);
+
+    if (std.mem.eql(u8, operation, "createElement")) {
+        if (argc < 3) return invalidArguments(context);
+        const id = readNodeId(context, argv[1]) orelse return invalidArguments(context);
+        const type_raw = c.JS_ToCString(context, argv[2]);
+        if (type_raw == null) return stringConversionFailed(context);
+        defer c.JS_FreeCString(context, type_raw);
+        const type_z: [*:0]const u8 = @ptrCast(type_raw);
+        scene.createElement(id, std.mem.span(type_z)) catch return hostOperationFailed(context);
+        return c.JS_NewInt32(context, 0);
+    }
+
+    if (std.mem.eql(u8, operation, "createTextNode")) {
+        if (argc < 3) return invalidArguments(context);
+        const id = readNodeId(context, argv[1]) orelse return invalidArguments(context);
+        const value_raw = c.JS_ToCString(context, argv[2]);
+        if (value_raw == null) return stringConversionFailed(context);
+        defer c.JS_FreeCString(context, value_raw);
+        const value_z: [*:0]const u8 = @ptrCast(value_raw);
+        scene.createText(id, std.mem.span(value_z)) catch return hostOperationFailed(context);
+        return c.JS_NewInt32(context, 0);
+    }
+
+    if (std.mem.eql(u8, operation, "replaceText")) {
+        if (argc < 3) return invalidArguments(context);
+        const id = readNodeId(context, argv[1]) orelse return invalidArguments(context);
+        const value_raw = c.JS_ToCString(context, argv[2]);
+        if (value_raw == null) return stringConversionFailed(context);
+        defer c.JS_FreeCString(context, value_raw);
+        const value_z: [*:0]const u8 = @ptrCast(value_raw);
+        scene.replaceText(id, std.mem.span(value_z)) catch return hostOperationFailed(context);
+        return c.JS_NewInt32(context, 0);
+    }
+
+    if (std.mem.eql(u8, operation, "setProperty")) {
+        if (argc < 4) return invalidArguments(context);
+        const id = readNodeId(context, argv[1]) orelse return invalidArguments(context);
+        const name_raw = c.JS_ToCString(context, argv[2]);
+        if (name_raw == null) return stringConversionFailed(context);
+        defer c.JS_FreeCString(context, name_raw);
+        const value_raw = c.JS_ToCString(context, argv[3]);
+        if (value_raw == null) return stringConversionFailed(context);
+        defer c.JS_FreeCString(context, value_raw);
+        const name_z: [*:0]const u8 = @ptrCast(name_raw);
+        const value_z: [*:0]const u8 = @ptrCast(value_raw);
+        scene.setPropertyJson(
+            id,
+            std.mem.span(name_z),
+            std.mem.span(value_z),
+        ) catch return hostOperationFailed(context);
+        return c.JS_NewInt32(context, 0);
+    }
+
+    if (std.mem.eql(u8, operation, "insertNode")) {
+        if (argc < 4) return invalidArguments(context);
+        const parent_id = readNodeId(context, argv[1]) orelse return invalidArguments(context);
+        const node_id = readNodeId(context, argv[2]) orelse return invalidArguments(context);
+        const anchor_id: ?scene_module.NodeId = if (c.JS_IsNull(argv[3]) != 0)
+            null
+        else
+            readNodeId(context, argv[3]) orelse return invalidArguments(context);
+        scene.insertNode(parent_id, node_id, anchor_id) catch return hostOperationFailed(context);
+        return c.JS_NewInt32(context, 0);
+    }
+
+    if (std.mem.eql(u8, operation, "removeNode")) {
+        if (argc < 3) return invalidArguments(context);
+        const parent_id = readNodeId(context, argv[1]) orelse return invalidArguments(context);
+        const node_id = readNodeId(context, argv[2]) orelse return invalidArguments(context);
+        scene.removeNode(parent_id, node_id) catch return hostOperationFailed(context);
+        return c.JS_NewInt32(context, 0);
+    }
+
+    return c.JS_ThrowTypeError(context, "Unknown Hondo host operation");
+}
+
+fn readNodeId(context: *c.JSContext, value: c.JSValueConst) ?scene_module.NodeId {
+    var result: i32 = 0;
+    if (c.JS_ToInt32(context, &result, value) < 0 or result < 0) return null;
+    return @intCast(result);
+}
+
+fn invalidArguments(context: *c.JSContext) c.JSValue {
+    return c.JS_ThrowTypeError(context, "Invalid Hondo host operation arguments");
+}
+
+fn stringConversionFailed(context: *c.JSContext) c.JSValue {
+    return c.JS_ThrowTypeError(context, "Hondo host string conversion failed");
+}
+
+fn hostOperationFailed(context: *c.JSContext) c.JSValue {
+    return c.JS_ThrowInternalError(context, "Hondo scene mutation failed");
+}
 
 fn dumpException(context: *c.JSContext) void {
     const exception = c.JS_GetException(context);
@@ -110,5 +247,54 @@ test "QuickJS reports evaluation failures" {
     try std.testing.expectError(
         RuntimeError.EvaluationFailed,
         runtime.eval("throw new Error('expected smoke failure');", "hondo-error.js"),
+    );
+}
+
+test "QuickJS host bridge mutates the Zig scene" {
+    var scene = try scene_module.Scene.init(std.testing.allocator);
+    defer scene.deinit();
+
+    var runtime = try Runtime.init();
+    defer runtime.deinit();
+    try runtime.installSceneBridge(&scene);
+
+    try runtime.eval(
+        \\__hondoHostCall("createElement", 1, "text");
+        \\__hondoHostCall("createTextNode", 2, "Count: 0");
+        \\__hondoHostCall("setProperty", 1, "style", "{\"bold\":true}");
+        \\__hondoHostCall("insertNode", 0, 1, null);
+        \\__hondoHostCall("insertNode", 1, 2, null);
+        \\__hondoHostCall("replaceText", 2, "Count: 1");
+    , "hondo-host-bridge.js");
+
+    try std.testing.expectEqualStrings("text", (try scene.getNode(1)).type_name);
+    try std.testing.expectEqualStrings("Count: 1", (try scene.getNode(2)).text.?);
+    try std.testing.expectEqual(@as(?scene_module.NodeId, 1), (try scene.getNode(2)).parent);
+    try std.testing.expectEqualStrings(
+        "{\"bold\":true}",
+        (try scene.getPropertyJson(1, "style")).?,
+    );
+
+    try runtime.eval(
+        "__hondoHostCall('removeNode', 1, 2);",
+        "hondo-host-remove.js",
+    );
+    try std.testing.expectEqual(@as(?scene_module.NodeId, null), (try scene.getNode(2)).parent);
+}
+
+test "QuickJS host bridge turns invalid scene mutations into JavaScript exceptions" {
+    var scene = try scene_module.Scene.init(std.testing.allocator);
+    defer scene.deinit();
+
+    var runtime = try Runtime.init();
+    defer runtime.deinit();
+    try runtime.installSceneBridge(&scene);
+
+    try std.testing.expectError(
+        RuntimeError.EvaluationFailed,
+        runtime.eval(
+            "__hondoHostCall('removeNode', 0, 99);",
+            "hondo-host-invalid.js",
+        ),
     );
 }
