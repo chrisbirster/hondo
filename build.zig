@@ -4,6 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const quickjs_source = b.dependency("quickjs_source", .{});
+    const is_windows = target.result.os.tag == .windows;
 
     const quickjs = b.addLibrary(.{
         .name = "quickjs",
@@ -18,30 +19,46 @@ pub fn build(b: *std.Build) void {
     quickjs.root_module.addIncludePath(quickjs_source.path("."));
     quickjs.root_module.addCMacro("_GNU_SOURCE", "1");
     quickjs.root_module.addCMacro("CONFIG_VERSION", "\"2026-06-04\"");
-    if (target.result.os.tag == .windows) {
+    if (is_windows) {
         quickjs.root_module.addCMacro("__USE_MINGW_ANSI_STDIO", "1");
     }
+
+    const quickjs_c_flags = &.{
+        "-fwrapv",
+        "-funsigned-char",
+        "-Wno-implicit-fallthrough",
+        "-Wno-sign-compare",
+        "-Wno-missing-field-initializers",
+        "-Wno-unused-parameter",
+        "-Wno-unused-but-set-variable",
+        "-Wno-array-bounds",
+        "-Wno-format-truncation",
+    };
+
     quickjs.root_module.addCSourceFiles(.{
         .root = quickjs_source.path("."),
         .files = &.{
-            "quickjs.c",
             "dtoa.c",
             "libregexp.c",
             "libunicode.c",
             "cutils.c",
         },
-        .flags = &.{
-            "-fwrapv",
-            "-funsigned-char",
-            "-Wno-implicit-fallthrough",
-            "-Wno-sign-compare",
-            "-Wno-missing-field-initializers",
-            "-Wno-unused-parameter",
-            "-Wno-unused-but-set-variable",
-            "-Wno-array-bounds",
-            "-Wno-format-truncation",
-        },
+        .flags = quickjs_c_flags,
     });
+
+    if (is_windows) {
+        quickjs.root_module.addCSourceFiles(.{
+            .root = b.path("."),
+            .files = &.{"zig/c/quickjs_windows.c"},
+            .flags = quickjs_c_flags,
+        });
+    } else {
+        quickjs.root_module.addCSourceFiles(.{
+            .root = quickjs_source.path("."),
+            .files = &.{"quickjs.c"},
+            .flags = quickjs_c_flags,
+        });
+    }
 
     const hondo = b.addModule("hondo", .{
         .root_source_file = b.path("zig/src/root.zig"),
