@@ -33,7 +33,13 @@ jobs:
           replacement = '''    \\\\  };\n    \\\\}\n    \\\\if (typeof globalThis.console !== "object" || globalThis.console === null) {\n    \\\\  const noop = function noop() {};\n    \\\\  globalThis.console = new Proxy({}, {\n    \\\\    get: function getConsoleMethod() { return noop; },\n    \\\\  });\n    \\\\}\n;\n'''
           if marker not in text:
               raise SystemExit('quickjs bootstrap marker not found')
-          quickjs.write_text(text.replace(marker, replacement, 1))
+          text = text.replace(marker, replacement, 1)
+
+          old_dump = '''fn dumpException(context: *c.JSContext) void {\n    const exception = c.JS_GetException(context);\n    defer c.JS_FreeValue(context, exception);\n\n    const message = c.JS_ToCString(context, exception);\n    if (message == null) return;\n    defer c.JS_FreeCString(context, message);\n\n    const zero_terminated: [*:0]const u8 = @ptrCast(message);\n    std.debug.print("Hondo QuickJS exception: {s}\\n", .{std.mem.span(zero_terminated)});\n}\n'''
+          new_dump = '''fn dumpException(context: *c.JSContext) void {\n    const exception = c.JS_GetException(context);\n    defer c.JS_FreeValue(context, exception);\n\n    const message = c.JS_ToCString(context, exception);\n    if (message != null) {\n        defer c.JS_FreeCString(context, message);\n        const zero_terminated: [*:0]const u8 = @ptrCast(message);\n        std.debug.print("Hondo QuickJS exception: {s}\\n", .{std.mem.span(zero_terminated)});\n    }\n\n    const stack = c.JS_GetPropertyStr(context, exception, "stack");\n    defer c.JS_FreeValue(context, stack);\n    if (c.JS_IsUndefined(stack) == 0) {\n        const stack_text = c.JS_ToCString(context, stack);\n        if (stack_text != null) {\n            defer c.JS_FreeCString(context, stack_text);\n            const stack_zero: [*:0]const u8 = @ptrCast(stack_text);\n            std.debug.print("Hondo QuickJS stack:\\n{s}\\n", .{std.mem.span(stack_zero)});\n        }\n    }\n}\n'''
+          if old_dump not in text:
+              raise SystemExit('dumpException marker not found')
+          quickjs.write_text(text.replace(old_dump, new_dump, 1))
 
           renderer = Path('zig/src/render/scene_renderer.zig')
           text = renderer.read_text()
