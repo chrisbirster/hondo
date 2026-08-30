@@ -49,7 +49,7 @@ pub const Scene = struct {
 
     pub fn deinit(self: *Scene) void {
         for (self.nodes.items) |*maybe_node| {
-            if (maybe_node.*) |*node| node.deinit(self.allocator);
+            if (maybe_node.*) |*entry| entry.deinit(self.allocator);
         }
         self.nodes.deinit(self.allocator);
         self.* = undefined;
@@ -64,30 +64,30 @@ pub const Scene = struct {
     }
 
     pub fn replaceText(self: *Scene, id: NodeId, value: []const u8) !void {
-        const node = try self.node(id);
-        if (node.kind != .text) return SceneError.MissingNode;
-        if (node.text) |existing| {
+        const entry = try self.getNode(id);
+        if (entry.kind != .text) return SceneError.MissingNode;
+        if (entry.text) |existing| {
             if (std.mem.eql(u8, existing, value)) return;
             self.allocator.free(existing);
         }
-        node.text = try self.allocator.dupe(u8, value);
+        entry.text = try self.allocator.dupe(u8, value);
     }
 
     pub fn insertNode(self: *Scene, parent_id: NodeId, node_id: NodeId, anchor_id: ?NodeId) !void {
         if (parent_id == node_id) return SceneError.NodeContainsItself;
 
-        const parent = try self.node(parent_id);
-        _ = try self.node(node_id);
+        const parent = try self.getNode(parent_id);
+        _ = try self.getNode(node_id);
 
         if (anchor_id) |anchor| {
             if (anchor == node_id) return SceneError.InvalidAnchor;
-            const anchor_node = try self.node(anchor);
+            const anchor_node = try self.getNode(anchor);
             if (anchor_node.parent != parent_id) return SceneError.InvalidAnchor;
         }
 
-        const current_parent = (try self.node(node_id)).parent;
+        const current_parent = (try self.getNode(node_id)).parent;
         if (current_parent) |old_parent_id| {
-            const old_parent = try self.node(old_parent_id);
+            const old_parent = try self.getNode(old_parent_id);
             const old_index = childIndex(old_parent, node_id) orelse return SceneError.InvalidParent;
             _ = old_parent.children.orderedRemove(old_index);
         }
@@ -98,20 +98,20 @@ pub const Scene = struct {
             parent.children.items.len;
 
         try parent.children.insert(self.allocator, insertion_index, node_id);
-        (try self.node(node_id)).parent = parent_id;
+        (try self.getNode(node_id)).parent = parent_id;
     }
 
     pub fn removeNode(self: *Scene, parent_id: NodeId, node_id: NodeId) !void {
-        const parent = try self.node(parent_id);
-        const node = try self.node(node_id);
-        if (node.parent != parent_id) return SceneError.InvalidParent;
+        const parent = try self.getNode(parent_id);
+        const entry = try self.getNode(node_id);
+        if (entry.parent != parent_id) return SceneError.InvalidParent;
 
         const index = childIndex(parent, node_id) orelse return SceneError.InvalidParent;
         _ = parent.children.orderedRemove(index);
-        node.parent = null;
+        entry.parent = null;
     }
 
-    pub fn node(self: *Scene, id: NodeId) SceneError!*Node {
+    pub fn getNode(self: *Scene, id: NodeId) SceneError!*Node {
         if (id >= self.nodes.items.len) return SceneError.MissingNode;
         return &(self.nodes.items[id] orelse return SceneError.MissingNode);
     }
@@ -167,14 +167,14 @@ test "scene applies create insert replace and remove without changing identities
     try scene.insertNode(1, 2, null);
 
     try std.testing.expectEqual(@as(NodeId, 1), scene.nodes.items[0].?.children.items[0]);
-    try std.testing.expectEqual(@as(?NodeId, 1), (try scene.node(2)).parent);
+    try std.testing.expectEqual(@as(?NodeId, 1), (try scene.getNode(2)).parent);
 
     try scene.replaceText(2, "Count: 1");
-    try std.testing.expectEqualStrings("Count: 1", (try scene.node(2)).text.?);
+    try std.testing.expectEqualStrings("Count: 1", (try scene.getNode(2)).text.?);
 
     try scene.removeNode(1, 2);
-    try std.testing.expectEqual(@as(usize, 0), (try scene.node(1)).children.items.len);
-    try std.testing.expectEqual(@as(?NodeId, null), (try scene.node(2)).parent);
+    try std.testing.expectEqual(@as(usize, 0), (try scene.getNode(1)).children.items.len);
+    try std.testing.expectEqual(@as(?NodeId, null), (try scene.getNode(2)).parent);
 }
 
 test "scene reorders an existing identity before an anchor" {
@@ -190,6 +190,6 @@ test "scene reorders an existing identity before an anchor" {
 
     try scene.insertNode(0, 3, 1);
 
-    const root = try scene.node(0);
+    const root = try scene.getNode(0);
     try std.testing.expectEqualSlices(NodeId, &.{ 3, 1, 2 }, root.children.items);
 }
