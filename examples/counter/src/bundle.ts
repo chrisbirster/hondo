@@ -1,6 +1,11 @@
+import { registerNativeEvent } from '@hondo/core';
 import { mountCounter } from './runtime.js';
 
 const counter = mountCounter();
+const unregisterIncrement = registerNativeEvent(
+  'counter.increment',
+  () => counter.increment(),
+);
 
 type HondoCounterGlobals = typeof globalThis & {
   __hondoCounterIncrement?: () => void;
@@ -9,4 +14,7 @@ type HondoCounterGlobals = typeof globalThis & {
 
 const globals = globalThis as HondoCounterGlobals;
 globals.__hondoCounterIncrement = () => counter.increment();
-globals.__hondoCounterDispose = () => counter.dispose();
+globals.__hondoCounterDispose = () => {
+  unregisterIncrement();
+  counter.dispose();
+};
