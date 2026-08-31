@@ -111,21 +111,21 @@ fn measuredStyle(
     while (inner.len > 0 and std.ascii.isWhitespace(inner[inner.len - 1])) inner = inner[0 .. inner.len - 1];
 
     if (inner.len == 0) {
-        if (!has_width and !has_height) return std.fmt.allocPrint(
+        if (!has_width and !has_height) return try std.fmt.allocPrint(
             allocator,
             "{{\"width\":{d},\"height\":{d}}}",
             .{ measured.width, measured.height },
         );
-        if (!has_width) return std.fmt.allocPrint(allocator, "{{\"width\":{d}}}", .{measured.width});
-        return std.fmt.allocPrint(allocator, "{{\"height\":{d}}}", .{measured.height});
+        if (!has_width) return try std.fmt.allocPrint(allocator, "{{\"width\":{d}}}", .{measured.width});
+        return try std.fmt.allocPrint(allocator, "{{\"height\":{d}}}", .{measured.height});
     }
-    if (!has_width and !has_height) return std.fmt.allocPrint(
+    if (!has_width and !has_height) return try std.fmt.allocPrint(
         allocator,
         "{{{s},\"width\":{d},\"height\":{d}}}",
         .{ inner, measured.width, measured.height },
     );
-    if (!has_width) return std.fmt.allocPrint(allocator, "{{{s},\"width\":{d}}}", .{ inner, measured.width });
-    return std.fmt.allocPrint(allocator, "{{{s},\"height\":{d}}}", .{ inner, measured.height });
+    if (!has_width) return try std.fmt.allocPrint(allocator, "{{{s},\"width\":{d}}}", .{ inner, measured.width });
+    return try std.fmt.allocPrint(allocator, "{{{s},\"height\":{d}}}", .{ inner, measured.height });
 }
 
 fn cloneWithoutHondoOverlays(
