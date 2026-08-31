@@ -39,6 +39,10 @@ export function mountCounter(
         event.preventDefault();
         increment();
       },
+      onMouse: (event: HondoNodeEvent) => {
+        if (!isActivationMouse(event.payload)) return;
+        increment();
+      },
       children: () => `Count: ${count()}`,
     }),
   host.root);
@@ -64,4 +68,9 @@ function isActivationKey(payload: HondoValue): boolean {
   if (!payload || Array.isArray(payload) || typeof payload !== 'object') return false;
   if (payload.kind === 'enter') return true;
   return payload.kind === 'codepoint' && payload.codepoint === 32;
+}
+
+function isActivationMouse(payload: HondoValue): boolean {
+  if (!payload || Array.isArray(payload) || typeof payload !== 'object') return false;
+  return payload.button === 'left' && payload.action === 'press';
 }

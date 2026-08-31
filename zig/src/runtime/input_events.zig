@@ -4,6 +4,7 @@ const node_events = @import("node_events.zig");
 const scene_module = @import("../scene.zig");
 const terminal_input = @import("../terminal/input.zig");
 const focus = @import("../focus.zig");
+const hit_test = @import("../render/hit_test.zig");
 
 pub fn dispatch(
     allocator: std.mem.Allocator,
@@ -32,21 +33,72 @@ pub fn dispatchFocused(
     else
         node_events.Result{ .default_prevented = false };
 
+    try applyPostDispatchDefaults(runtime, scene, manager, event, result, null);
+    return result;
+}
+
+pub fn dispatchInteractive(
+    allocator: std.mem.Allocator,
+    runtime: *quickjs_runtime.Runtime,
+    scene: *scene_module.Scene,
+    manager: *focus.Manager,
+    event: terminal_input.Event,
+    width: usize,
+    height: usize,
+) !node_events.Result {
+    if (try manager.syncRequested(scene)) |change| {
+        try dispatchFocusChange(runtime, change);
+    }
+
+    var mouse_target: ?scene_module.NodeId = null;
+    const result = switch (event) {
+        .mouse => |mouse| blk: {
+            mouse_target = try hit_test.hitTest(scene, width, height, mouse.x, mouse.y);
+            if (mouse_target) |target| {
+                break :blk try dispatch(allocator, runtime, target, event);
+            }
+            break :blk node_events.Result{ .default_prevented = false };
+        },
+        else => if (manager.target()) |target|
+            try dispatch(allocator, runtime, target, event)
+        else
+            node_events.Result{ .default_prevented = false },
+    };
+
+    try applyPostDispatchDefaults(runtime, scene, manager, event, result, mouse_target);
+    return result;
+}
+
+fn applyPostDispatchDefaults(
+    runtime: *quickjs_runtime.Runtime,
+    scene: *scene_module.Scene,
+    manager: *focus.Manager,
+    event: terminal_input.Event,
+    result: node_events.Result,
+    mouse_target: ?scene_module.NodeId,
+) !void {
     var declarative_focus_changed = false;
     if (try manager.syncRequested(scene)) |change| {
         declarative_focus_changed = true;
         try dispatchFocusChange(runtime, change);
     }
 
-    if (!declarative_focus_changed and !result.default_prevented) {
-        if (traversalDirection(event)) |direction| {
-            if (try manager.traverse(scene, direction, true)) |change| {
+    if (declarative_focus_changed or result.default_prevented) return;
+
+    if (traversalDirection(event)) |direction| {
+        if (try manager.traverse(scene, direction, true)) |change| {
+            try dispatchFocusChange(runtime, change);
+        }
+        return;
+    }
+
+    if (isPrimaryMousePress(event)) {
+        if (mouse_target) |target| {
+            if (try manager.setNearest(scene, target)) |change| {
                 try dispatchFocusChange(runtime, change);
             }
         }
     }
-
-    return result;
 }
 
 pub fn dispatchFocusChange(
@@ -126,6 +178,13 @@ fn traversalDirection(event: terminal_input.Event) ?focus.Direction {
             else => null,
         },
         else => null,
+    };
+}
+
+fn isPrimaryMousePress(event: terminal_input.Event) bool {
+    return switch (event) {
+        .mouse => |mouse| mouse.button == .left and mouse.action == .press,
+        else => false,
     };
 }
 
@@ -212,5 +271,64 @@ test "focused terminal key routing updates Solid through the node event bridge" 
     try runtime.eval(
         "globalThis.__hondoCounterDispose();",
         "hondo-counter-focused-key-dispose.js",
+    );
+}
+
+test "interactive mouse routing hit tests the scene and applies click focus" {
+    const counter_bundle = @embedFile("../generated/counter.js");
+
+    var scene = try scene_module.Scene.init(std.testing.allocator);
+    defer scene.deinit();
+
+    var runtime = try quickjs_runtime.Runtime.init();
+    defer runtime.deinit();
+    try runtime.installSceneBridge(&scene);
+    try runtime.eval(counter_bundle, "hondo-counter-spatial-mouse.js");
+
+    var manager = focus.Manager{};
+    if (try manager.syncRequested(&scene)) |change| {
+        try dispatchFocusChange(&runtime, change);
+    }
+    if (manager.clear()) |change| try dispatchFocusChange(&runtime, change);
+    try std.testing.expectEqual(@as(?scene_module.NodeId, null), manager.target());
+
+    const result = try dispatchInteractive(
+        std.testing.allocator,
+        &runtime,
+        &scene,
+        &manager,
+        .{ .mouse = .{
+            .x = 0,
+            .y = 0,
+            .button = .left,
+            .action = .press,
+        } },
+        12,
+        2,
+    );
+    try std.testing.expect(!result.default_prevented);
+    try std.testing.expectEqualStrings("Count: 1", (try scene.getNode(2)).text.?);
+    try std.testing.expectEqual(@as(?scene_module.NodeId, 1), manager.target());
+
+    _ = try dispatchInteractive(
+        std.testing.allocator,
+        &runtime,
+        &scene,
+        &manager,
+        .{ .mouse = .{
+            .x = 0,
+            .y = 1,
+            .button = .left,
+            .action = .press,
+        } },
+        12,
+        2,
+    );
+    try std.testing.expectEqualStrings("Count: 1", (try scene.getNode(2)).text.?);
+
+    if (manager.clear()) |change| try dispatchFocusChange(&runtime, change);
+    try runtime.eval(
+        "globalThis.__hondoCounterDispose();",
+        "hondo-counter-spatial-mouse-dispose.js",
     );
 }

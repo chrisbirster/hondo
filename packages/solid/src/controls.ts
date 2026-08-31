@@ -30,6 +30,26 @@ export interface HondoKeyPayload {
   codepoint?: number;
 }
 
+export type HondoMouseButton =
+  | 'none'
+  | 'left'
+  | 'middle'
+  | 'right'
+  | 'wheelUp'
+  | 'wheelDown';
+
+export type HondoMouseAction = 'press' | 'release' | 'move' | 'scroll';
+
+export interface HondoMousePayload {
+  x: number;
+  y: number;
+  button: HondoMouseButton;
+  action: HondoMouseAction;
+  shift: boolean;
+  alt: boolean;
+  ctrl: boolean;
+}
+
 export interface InputProps
   extends Omit<PrimitiveProps, 'children' | 'focusable' | 'onKey'> {
   value: string;
@@ -185,7 +205,28 @@ export function List<T>(props: ListProps<T>): HondoNode {
       }
     },
     onKeyCapture: props.onKeyCapture,
-    onMouse: props.onMouse,
+    onMouse: event => {
+      props.onMouse?.(event);
+      if (event.defaultPrevented || props.disabled || props.items.length === 0) return;
+      const mouse = mousePayload(event);
+      if (!mouse || mouse.button !== 'left') return;
+      ensureRows();
+      const index = targetNodeIndex(event, rows, props.items.length);
+      if (index < 0) return;
+      const item = props.items[index];
+      if (item === undefined) return;
+
+      if (mouse.action === 'press') {
+        if (index !== clampIndex(props.selectedIndex, props.items.length)) {
+          props.onSelectionChange?.(index, item);
+        }
+      } else if (
+        mouse.action === 'release'
+        && index === clampIndex(props.selectedIndex, props.items.length)
+      ) {
+        props.onActivate?.(index, item);
+      }
+    },
     onMouseCapture: props.onMouseCapture,
     onFocusIn: props.onFocusIn,
     onFocusInCapture: props.onFocusInCapture,
@@ -306,7 +347,28 @@ export function Menu<T>(props: MenuProps<T>): HondoNode {
       }
     },
     onKeyCapture: props.onKeyCapture,
-    onMouse: props.onMouse,
+    onMouse: event => {
+      props.onMouse?.(event);
+      if (event.defaultPrevented || props.disabled || props.items.length === 0) return;
+      const mouse = mousePayload(event);
+      if (!mouse || mouse.button !== 'left') return;
+      ensureRows();
+      const index = targetNodeIndex(event, rows, props.items.length);
+      if (index < 0 || itemDisabled(index)) return;
+      const item = props.items[index];
+      if (item === undefined) return;
+
+      if (mouse.action === 'press') {
+        if (index !== clampIndex(props.selectedIndex, props.items.length)) {
+          props.onSelectionChange?.(index, item);
+        }
+      } else if (
+        mouse.action === 'release'
+        && index === clampIndex(props.selectedIndex, props.items.length)
+      ) {
+        props.onActivate?.(index, item);
+      }
+    },
     onMouseCapture: props.onMouseCapture,
     onFocusIn: props.onFocusIn,
     onFocusInCapture: props.onFocusInCapture,
@@ -420,7 +482,28 @@ export function Tabs<T>(props: TabsProps<T>): HondoNode {
       }
     },
     onKeyCapture: props.onKeyCapture,
-    onMouse: props.onMouse,
+    onMouse: event => {
+      props.onMouse?.(event);
+      if (event.defaultPrevented || props.disabled || props.items.length === 0) return;
+      const mouse = mousePayload(event);
+      if (!mouse || mouse.button !== 'left') return;
+      ensureTabs();
+      const index = targetNodeIndex(event, tabs, props.items.length);
+      if (index < 0 || itemDisabled(index)) return;
+      const item = props.items[index];
+      if (item === undefined) return;
+
+      if (mouse.action === 'press') {
+        if (index !== clampIndex(props.selectedIndex, props.items.length)) {
+          props.onSelectionChange?.(index, item);
+        }
+      } else if (
+        mouse.action === 'release'
+        && index === clampIndex(props.selectedIndex, props.items.length)
+      ) {
+        props.onActivate?.(index, item);
+      }
+    },
     onMouseCapture: props.onMouseCapture,
     onFocusIn: props.onFocusIn,
     onFocusInCapture: props.onFocusInCapture,
@@ -444,6 +527,16 @@ export interface ScrollViewProps
 }
 
 export function ScrollView(props: ScrollViewProps): HondoNode {
+  const scroll = (direction: -1 | 1) => {
+    if (props.disabled || !props.onOffsetChange) return false;
+    const viewport = normalizeViewport(props.viewportSize, props.children.length);
+    const maximum = Math.max(0, props.children.length - viewport);
+    const current = clamp(props.offset ?? 0, 0, maximum);
+    const next = clamp(current + direction, 0, maximum);
+    if (next !== current) props.onOffsetChange(next);
+    return true;
+  };
+
   return Column({
     get style() {
       return {
@@ -467,16 +560,19 @@ export function ScrollView(props: ScrollViewProps): HondoNode {
 
       const key = keyPayload(event);
       if (!key || (key.kind !== 'up' && key.kind !== 'down')) return;
-
-      const viewport = normalizeViewport(props.viewportSize, props.children.length);
-      const maximum = Math.max(0, props.children.length - viewport);
-      const current = clamp(props.offset ?? 0, 0, maximum);
-      const next = clamp(current + (key.kind === 'down' ? 1 : -1), 0, maximum);
-      if (next !== current) props.onOffsetChange(next);
+      scroll(key.kind === 'down' ? 1 : -1);
       event.preventDefault();
     },
     onKeyCapture: props.onKeyCapture,
-    onMouse: props.onMouse,
+    onMouse: event => {
+      props.onMouse?.(event);
+      if (event.defaultPrevented || props.disabled || !props.onOffsetChange) return;
+      const mouse = mousePayload(event);
+      if (!mouse || mouse.action !== 'scroll') return;
+      if (mouse.button !== 'wheelUp' && mouse.button !== 'wheelDown') return;
+      scroll(mouse.button === 'wheelDown' ? 1 : -1);
+      event.preventDefault();
+    },
     onMouseCapture: props.onMouseCapture,
     onFocusIn: props.onFocusIn,
     onFocusInCapture: props.onFocusInCapture,
@@ -507,6 +603,38 @@ export function keyPayload(event: HondoNodeEvent): HondoKeyPayload | undefined {
   return { kind };
 }
 
+export function mousePayload(event: HondoNodeEvent): HondoMousePayload | undefined {
+  if (event.type !== 'mouse') return undefined;
+  const payload = event.payload;
+  if (payload === null || Array.isArray(payload) || typeof payload !== 'object') return undefined;
+
+  const { x, y, button, action, shift, alt, ctrl } = payload;
+  if (typeof x !== 'number' || typeof y !== 'number') return undefined;
+  if (typeof button !== 'string' || !isMouseButton(button)) return undefined;
+  if (typeof action !== 'string' || !isMouseAction(action)) return undefined;
+  if (typeof shift !== 'boolean' || typeof alt !== 'boolean' || typeof ctrl !== 'boolean') {
+    return undefined;
+  }
+
+  return { x, y, button, action, shift, alt, ctrl };
+}
+
+function targetNodeIndex(event: HondoNodeEvent, nodes: readonly HondoNode[], count: number): number {
+  const limit = Math.min(nodes.length, count);
+  for (let index = 0; index < limit; index += 1) {
+    const node = nodes[index];
+    if (node && nodeContainsTarget(node, event.target)) return index;
+  }
+  return -1;
+}
+
+function nodeContainsTarget(node: HondoNode, target: HondoNode): boolean {
+  for (let current: HondoNode | null = target; current; current = current.parent) {
+    if (current === node) return true;
+  }
+  return false;
+}
+
 function removeLastCodePoint(value: string): string {
   const codepoints = Array.from(value);
   codepoints.pop();
@@ -525,6 +653,22 @@ function isKeyKind(value: string): value is HondoKeyKind {
     || value === 'down'
     || value === 'left'
     || value === 'right';
+}
+
+function isMouseButton(value: string): value is HondoMouseButton {
+  return value === 'none'
+    || value === 'left'
+    || value === 'middle'
+    || value === 'right'
+    || value === 'wheelUp'
+    || value === 'wheelDown';
+}
+
+function isMouseAction(value: string): value is HondoMouseAction {
+  return value === 'press'
+    || value === 'release'
+    || value === 'move'
+    || value === 'scroll';
 }
 
 function nextIndex(current: number, direction: -1 | 1, count: number, loop: boolean): number {

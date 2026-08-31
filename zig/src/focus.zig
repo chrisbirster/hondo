@@ -29,6 +29,20 @@ pub const Manager = struct {
         return change;
     }
 
+    pub fn setNearest(
+        self: *Manager,
+        scene: *scene_module.Scene,
+        node_id: scene_module.NodeId,
+    ) !?Change {
+        var current: ?scene_module.NodeId = node_id;
+        while (current) |candidate| {
+            const node = try scene.getNode(candidate);
+            if (try isFocusable(scene, candidate)) return self.set(scene, candidate);
+            current = node.parent;
+        }
+        return null;
+    }
+
     pub fn syncRequested(self: *Manager, scene: *scene_module.Scene) !?Change {
         var requested_id: ?scene_module.NodeId = null;
         var requested_sequence = self.last_request;
@@ -128,6 +142,23 @@ test "focus manager only targets focusable scene nodes" {
     const cleared = manager.clear().?;
     try std.testing.expectEqual(@as(?scene_module.NodeId, 2), cleared.previous);
     try std.testing.expectEqual(@as(?scene_module.NodeId, null), cleared.current);
+}
+
+test "focus manager finds the nearest focusable mouse ancestor" {
+    var scene = try scene_module.Scene.init(std.testing.allocator);
+    defer scene.deinit();
+    try scene.createElement(1, "column");
+    try scene.createElement(2, "text");
+    try scene.createText(3, "click");
+    try scene.setPropertyJson(1, "focusable", "true");
+    try scene.insertNode(0, 1, null);
+    try scene.insertNode(1, 2, null);
+    try scene.insertNode(2, 3, null);
+
+    var manager = Manager{};
+    const change = (try manager.setNearest(&scene, 3)).?;
+    try std.testing.expectEqual(@as(?scene_module.NodeId, 1), change.current);
+    try std.testing.expectEqual(@as(?scene_module.NodeId, 1), manager.target());
 }
 
 test "focus manager consumes the newest declarative focus request once" {
