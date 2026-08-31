@@ -53,49 +53,54 @@ interface VisibleTreeRow<T> {
   expanded: boolean;
 }
 
+interface CachedTreeRow {
+  text: string;
+  node: HondoNode;
+}
+
 export function Tree<T>(props: TreeProps<T>): HondoNode {
-  const rowNodes = new Map<string, HondoNode>();
+  const rowNodes = new Map<string, CachedTreeRow>();
 
   const visibleRows = () => flattenTree(props.items, new Set(props.expandedIds));
 
   const rowForId = (id: string) => visibleRows().find(row => row.item.id === id);
 
-  const ensureRowNode = (id: string) => {
+  const rowText = (row: VisibleTreeRow<T>) => {
+    const selected = row.item.id === props.selectedId;
+    const context: TreeRenderContext = {
+      depth: row.depth,
+      branch: row.branch,
+      expanded: row.expanded,
+      selected,
+      disabled: row.item.disabled ?? false,
+    };
+    const label = props.renderItem
+      ? props.renderItem(row.item, context)
+      : String(row.item.value);
+    const indent = Math.max(0, props.indent ?? 2);
+    const marker = row.branch ? (row.expanded ? '▾ ' : '▸ ') : '  ';
+    return `${' '.repeat(row.depth * indent)}${marker}${label}`;
+  };
+
+  const ensureRowNode = (row: VisibleTreeRow<T>) => {
+    const id = row.item.id;
+    const text = rowText(row);
     const existing = rowNodes.get(id);
-    if (existing) return existing;
+    if (existing?.text === text) return existing.node;
 
     const node = Text({
       get style() {
-        const row = rowForId(id);
-        if (!row) return props.itemStyle;
-        const selected = row.item.id === props.selectedId;
+        const current = rowForId(id) ?? row;
+        const selected = current.item.id === props.selectedId;
         return {
           ...(props.itemStyle ?? {}),
           ...(selected ? { reverse: true, ...(props.selectedStyle ?? {}) } : {}),
-          ...(row.item.disabled ? { dim: true, ...(props.disabledStyle ?? {}) } : {}),
+          ...(current.item.disabled ? { dim: true, ...(props.disabledStyle ?? {}) } : {}),
         };
       },
-      get children() {
-        const row = rowForId(id);
-        if (!row) return '';
-        const selected = row.item.id === props.selectedId;
-        const expanded = row.branch && props.expandedIds.includes(id);
-        const context: TreeRenderContext = {
-          depth: row.depth,
-          branch: row.branch,
-          expanded,
-          selected,
-          disabled: row.item.disabled ?? false,
-        };
-        const label = props.renderItem
-          ? props.renderItem(row.item, context)
-          : String(row.item.value);
-        const indent = Math.max(0, props.indent ?? 2);
-        const marker = row.branch ? (expanded ? '▾ ' : '▸ ') : '  ';
-        return `${' '.repeat(row.depth * indent)}${marker}${label}`;
-      },
+      children: text,
     });
-    rowNodes.set(id, node);
+    rowNodes.set(id, { text, node });
     return node;
   };
 
@@ -195,7 +200,7 @@ export function Tree<T>(props: TreeProps<T>): HondoNode {
       const start = viewportStart(Math.max(0, selected), rows.length, viewport);
       return rows
         .slice(start, Math.min(rows.length, start + viewport))
-        .map(row => ensureRowNode(row.item.id));
+        .map(row => ensureRowNode(row));
     },
   });
 }
