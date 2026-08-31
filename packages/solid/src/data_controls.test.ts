@@ -9,6 +9,28 @@ function textContent(node: HondoNode): string {
   return node.children.map(textContent).join('');
 }
 
+function deepest(node: HondoNode): HondoNode {
+  let current = node;
+  while (current.children[0]) current = current.children[0];
+  return current;
+}
+
+function dispatchMouse(
+  host: HondoHost,
+  target: HondoNode,
+  action: 'press' | 'release',
+) {
+  return host.dispatchNodeEvent(deepest(target).id, 'mouse', {
+    x: 0,
+    y: 0,
+    button: 'left',
+    action,
+    shift: false,
+    alt: false,
+    ctrl: false,
+  });
+}
+
 function mountHost(code: () => HondoNode) {
   const bridge = new RecordingMutationBridge();
   const host = new HondoHost(bridge);
@@ -126,6 +148,54 @@ describe('Tree', () => {
     mounted.dispose();
     mounted.restore();
   });
+
+  it('selects with mouse press, toggles branches on release, and activates leaves', () => {
+    const items: readonly TreeItem<string>[] = [
+      {
+        id: 'src',
+        value: 'src',
+        children: [{ id: 'app', value: 'app.ts' }],
+      },
+      { id: 'readme', value: 'README.md' },
+    ];
+    const [selectedId, setSelectedId] = createSignal('readme');
+    const [expandedIds, setExpandedIds] = createSignal<readonly string[]>([]);
+    const activated: string[] = [];
+    let tree!: HondoNode;
+
+    const mounted = mountHost(() => {
+      tree = Tree({
+        items,
+        get selectedId() {
+          return selectedId();
+        },
+        get expandedIds() {
+          return expandedIds();
+        },
+        onSelectionChange: setSelectedId,
+        onExpandedChange: setExpandedIds,
+        onActivate: id => activated.push(id),
+      });
+      return tree;
+    });
+
+    dispatchMouse(mounted.host, tree.children[0]!, 'press');
+    flush();
+    expect(selectedId()).toBe('src');
+    dispatchMouse(mounted.host, tree.children[0]!, 'release');
+    flush();
+    expect(expandedIds()).toEqual(['src']);
+    expect(tree.children.map(textContent)).toEqual(['▾ src', '    app.ts', '  README.md']);
+
+    dispatchMouse(mounted.host, tree.children[1]!, 'press');
+    flush();
+    expect(selectedId()).toBe('app');
+    dispatchMouse(mounted.host, tree.children[1]!, 'release');
+    expect(activated).toEqual(['app']);
+
+    mounted.dispose();
+    mounted.restore();
+  });
 });
 
 describe('Table', () => {
@@ -202,6 +272,41 @@ describe('Table', () => {
     mounted.host.dispatchNodeEvent(table.id, 'key', { kind: 'down' });
     flush();
     expect(selected()).toBe(1);
+
+    mounted.dispose();
+    mounted.restore();
+  });
+
+  it('selects and activates data rows with the mouse while ignoring the header', () => {
+    const rows = [{ value: 'one' }, { value: 'two' }];
+    const [selected, setSelected] = createSignal(0);
+    const activated: string[] = [];
+    let table!: HondoNode;
+
+    const mounted = mountHost(() => {
+      table = Table({
+        rows,
+        columns: [
+          { key: 'value', header: 'Value', width: 8, renderCell: row => row.value },
+        ],
+        get selectedIndex() {
+          return selected();
+        },
+        onSelectionChange: setSelected,
+        onActivate: (_index, row) => activated.push(row.value),
+      });
+      return table;
+    });
+
+    dispatchMouse(mounted.host, table.children[0]!, 'press');
+    flush();
+    expect(selected()).toBe(0);
+
+    dispatchMouse(mounted.host, table.children[2]!, 'press');
+    flush();
+    expect(selected()).toBe(1);
+    dispatchMouse(mounted.host, table.children[2]!, 'release');
+    expect(activated).toEqual(['two']);
 
     mounted.dispose();
     mounted.restore();
