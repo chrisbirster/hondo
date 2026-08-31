@@ -136,8 +136,10 @@ pub const Registry = struct {
         if (name.len == 0) return NativeViewError.InvalidNativeType;
         if (self.findRegistration(name) != null) return NativeViewError.DuplicateRegistration;
 
+        const owned_name = try self.allocator.dupe(u8, name);
+        errdefer self.allocator.free(owned_name);
         try self.registrations.append(self.allocator, .{
-            .name = try self.allocator.dupe(u8, name),
+            .name = owned_name,
             .component = component,
         });
     }
@@ -260,9 +262,11 @@ pub const Registry = struct {
         node_id: scene_module.NodeId,
         payload_json: []const u8,
     ) !void {
+        const owned_payload = try self.allocator.dupe(u8, payload_json);
+        errdefer self.allocator.free(owned_payload);
         try self.notifications.append(self.allocator, .{
             .node_id = node_id,
-            .payload_json = try self.allocator.dupe(u8, payload_json),
+            .payload_json = owned_payload,
         });
     }
 
@@ -367,17 +371,17 @@ fn testCreate(
     return state;
 }
 
-fn testDestroy(allocator: std.mem.Allocator, opaque: ?*anyopaque) void {
-    const state: *TestState = @ptrCast(@alignCast(opaque orelse return));
+fn testDestroy(allocator: std.mem.Allocator, state_ptr: ?*anyopaque) void {
+    const state: *TestState = @ptrCast(@alignCast(state_ptr orelse return));
     allocator.destroy(state);
 }
 
 fn testMeasure(
-    opaque: ?*anyopaque,
+    state_ptr: ?*anyopaque,
     context: Context,
     constraints: Constraints,
 ) !Size {
-    _ = opaque;
+    _ = state_ptr;
     _ = context;
     try std.testing.expectEqual(@as(usize, 20), constraints.max_width);
     try std.testing.expectEqual(@as(usize, 10), constraints.max_height);
@@ -385,29 +389,29 @@ fn testMeasure(
 }
 
 fn testPaint(
-    opaque: ?*anyopaque,
+    state_ptr: ?*anyopaque,
     context: Context,
     grid: *cell_grid.CellGrid,
     bounds: Bounds,
 ) !void {
-    _ = opaque;
+    _ = state_ptr;
     try grid.paintUtf8(bounds.x, bounds.y, "NATIVE", bounds.width);
     context.invalidate();
 }
 
-fn testUpdate(opaque: ?*anyopaque, context: Context, props_json: []const u8) !void {
+fn testUpdate(state_ptr: ?*anyopaque, context: Context, props_json: []const u8) !void {
     _ = context;
     _ = props_json;
-    const state: *TestState = @ptrCast(@alignCast(opaque orelse return));
+    const state: *TestState = @ptrCast(@alignCast(state_ptr orelse return));
     state.updates += 1;
 }
 
 fn testInput(
-    opaque: ?*anyopaque,
+    state_ptr: ?*anyopaque,
     context: Context,
     event: terminal_input.Event,
 ) !InputResult {
-    const state: *TestState = @ptrCast(@alignCast(opaque orelse return .ignored));
+    const state: *TestState = @ptrCast(@alignCast(state_ptr orelse return .ignored));
     switch (event) {
         .key => |key| switch (key) {
             .enter => {
