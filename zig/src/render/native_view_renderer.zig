@@ -362,20 +362,20 @@ fn testCreate(allocator: std.mem.Allocator, context: native_view.Context, props:
     state.* = .{};
     return state;
 }
-fn testDestroy(allocator: std.mem.Allocator, opaque: ?*anyopaque) void {
-    const state: *TestState = @ptrCast(@alignCast(opaque orelse return));
+fn testDestroy(allocator: std.mem.Allocator, state_ptr: ?*anyopaque) void {
+    const state: *TestState = @ptrCast(@alignCast(state_ptr orelse return));
     allocator.destroy(state);
 }
-fn testMeasure(opaque: ?*anyopaque, context: native_view.Context, constraints: native_view.Constraints) !native_view.Size {
-    _ = opaque;
+fn testMeasure(state_ptr: ?*anyopaque, context: native_view.Context, constraints: native_view.Constraints) !native_view.Size {
+    _ = state_ptr;
     _ = context;
     try std.testing.expectEqual(@as(usize, 12), constraints.max_width);
     try std.testing.expectEqual(@as(usize, 4), constraints.max_height);
     return .{ .width = 6, .height = 2 };
 }
-fn testPaint(opaque: ?*anyopaque, context: native_view.Context, grid: *cell_grid.CellGrid, bounds: native_view.Bounds) !void {
+fn testPaint(state_ptr: ?*anyopaque, context: native_view.Context, grid: *cell_grid.CellGrid, bounds: native_view.Bounds) !void {
     _ = context;
-    const state: *TestState = @ptrCast(@alignCast(opaque orelse return));
+    const state: *TestState = @ptrCast(@alignCast(state_ptr orelse return));
     state.bounds = bounds;
     try grid.paintUtf8(bounds.x, bounds.y, "NATIVE", bounds.width);
     if (bounds.height > 1) try grid.paintUtf8(bounds.x, bounds.y + 1, "view", bounds.width);
