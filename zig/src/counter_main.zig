@@ -75,11 +75,13 @@ const CounterApp = struct {
     }
 
     fn dispatchInput(self: *CounterApp, event: hondo.terminal.input.Event) !hondo.node_events.Result {
-        try self.syncFocus();
-        const target = self.focus.target() orelse return .{ .default_prevented = false };
-        const result = try hondo.input_events.dispatch(self.allocator, &self.runtime, target, event);
-        try self.syncFocus();
-        return result;
+        return hondo.input_events.dispatchFocused(
+            self.allocator,
+            &self.runtime,
+            self.scene,
+            &self.focus,
+            event,
+        );
     }
 
     fn render(self: *CounterApp) !void {

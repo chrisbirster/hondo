@@ -5,6 +5,7 @@ import {
 } from '@hondo/core';
 import {
   Column,
+  Row,
   Text,
   type HondoRef,
   type HondoStyle,
@@ -15,6 +16,8 @@ export type HondoKeyKind =
   | 'codepoint'
   | 'enter'
   | 'backspace'
+  | 'tab'
+  | 'shiftTab'
   | 'escape'
   | 'ctrlC'
   | 'up'
@@ -200,6 +203,236 @@ export function List<T>(props: ListProps<T>): HondoNode {
   });
 }
 
+export interface MenuProps<T>
+  extends Omit<PrimitiveProps, 'children' | 'focusable' | 'onKey'> {
+  items: readonly T[];
+  selectedIndex: number;
+  disabled?: boolean;
+  loop?: boolean;
+  viewportSize?: number;
+  itemStyle?: HondoStyle;
+  selectedStyle?: HondoStyle;
+  disabledStyle?: HondoStyle;
+  renderItem?: (item: T, index: number, selected: boolean) => string;
+  isDisabled?: (item: T, index: number) => boolean;
+  onSelectionChange?: (index: number, item: T) => void;
+  onActivate?: (index: number, item: T) => void;
+  onKey?: HondoNodeEventHandler;
+}
+
+export function Menu<T>(props: MenuProps<T>): HondoNode {
+  const rows: HondoNode[] = [];
+
+  const itemDisabled = (index: number) => {
+    const item = props.items[index];
+    return item === undefined || (props.isDisabled?.(item, index) ?? false);
+  };
+
+  const ensureRows = () => {
+    while (rows.length < props.items.length) {
+      const index = rows.length;
+      rows.push(
+        Text({
+          get style() {
+            const selected = index === clampIndex(props.selectedIndex, props.items.length);
+            const disabled = itemDisabled(index);
+            return {
+              ...(props.itemStyle ?? {}),
+              ...(selected ? { reverse: true, ...(props.selectedStyle ?? {}) } : {}),
+              ...(disabled ? { dim: true, ...(props.disabledStyle ?? {}) } : {}),
+            };
+          },
+          get children() {
+            const item = props.items[index];
+            if (item === undefined) return '';
+            const selected = index === clampIndex(props.selectedIndex, props.items.length);
+            return props.renderItem
+              ? props.renderItem(item, index, selected)
+              : String(item);
+          },
+        }),
+      );
+    }
+  };
+
+  return Column({
+    get style() {
+      return {
+        clip: true,
+        ...(props.viewportSize !== undefined ? { height: Math.max(0, props.viewportSize) } : {}),
+        ...(props.style ?? {}),
+      };
+    },
+    get focusable() {
+      return !props.disabled && props.items.length > 0;
+    },
+    get autoFocus() {
+      return props.autoFocus;
+    },
+    get ref() {
+      return props.ref;
+    },
+    onKey: event => {
+      props.onKey?.(event);
+      if (event.defaultPrevented || props.disabled || props.items.length === 0) return;
+      const key = keyPayload(event);
+      if (!key) return;
+
+      if (key.kind === 'up' || key.kind === 'down') {
+        const direction = key.kind === 'down' ? 1 : -1;
+        const current = clampIndex(props.selectedIndex, props.items.length);
+        const next = nextEnabledIndex(
+          current,
+          direction,
+          props.items.length,
+          props.loop ?? false,
+          itemDisabled,
+        );
+        if (next !== current) {
+          const item = props.items[next];
+          if (item !== undefined) props.onSelectionChange?.(next, item);
+        }
+        if (props.onSelectionChange) event.preventDefault();
+        return;
+      }
+
+      if (key.kind === 'enter' && props.onActivate) {
+        const index = clampIndex(props.selectedIndex, props.items.length);
+        const item = props.items[index];
+        if (item !== undefined && !itemDisabled(index)) {
+          props.onActivate(index, item);
+          event.preventDefault();
+        }
+      }
+    },
+    onKeyCapture: props.onKeyCapture,
+    onMouse: props.onMouse,
+    onMouseCapture: props.onMouseCapture,
+    onFocusIn: props.onFocusIn,
+    onFocusInCapture: props.onFocusInCapture,
+    onFocusOut: props.onFocusOut,
+    onFocusOutCapture: props.onFocusOutCapture,
+    get children() {
+      ensureRows();
+      const count = props.items.length;
+      if (count === 0) return [];
+      const viewport = normalizeViewport(props.viewportSize, count);
+      const selected = clampIndex(props.selectedIndex, count);
+      const start = viewportStart(selected, count, viewport);
+      return rows.slice(start, Math.min(count, start + viewport));
+    },
+  });
+}
+
+export interface TabsProps<T>
+  extends Omit<PrimitiveProps, 'children' | 'focusable' | 'onKey'> {
+  items: readonly T[];
+  selectedIndex: number;
+  disabled?: boolean;
+  loop?: boolean;
+  tabStyle?: HondoStyle;
+  selectedStyle?: HondoStyle;
+  disabledStyle?: HondoStyle;
+  renderTab?: (item: T, index: number, selected: boolean) => string;
+  isDisabled?: (item: T, index: number) => boolean;
+  onSelectionChange?: (index: number, item: T) => void;
+  onActivate?: (index: number, item: T) => void;
+  onKey?: HondoNodeEventHandler;
+}
+
+export function Tabs<T>(props: TabsProps<T>): HondoNode {
+  const tabs: HondoNode[] = [];
+
+  const itemDisabled = (index: number) => {
+    const item = props.items[index];
+    return item === undefined || (props.isDisabled?.(item, index) ?? false);
+  };
+
+  const ensureTabs = () => {
+    while (tabs.length < props.items.length) {
+      const index = tabs.length;
+      tabs.push(
+        Text({
+          get style() {
+            const selected = index === clampIndex(props.selectedIndex, props.items.length);
+            const disabled = itemDisabled(index);
+            return {
+              ...(props.tabStyle ?? {}),
+              ...(selected ? { reverse: true, ...(props.selectedStyle ?? {}) } : {}),
+              ...(disabled ? { dim: true, ...(props.disabledStyle ?? {}) } : {}),
+            };
+          },
+          get children() {
+            const item = props.items[index];
+            if (item === undefined) return '';
+            const selected = index === clampIndex(props.selectedIndex, props.items.length);
+            return props.renderTab ? props.renderTab(item, index, selected) : String(item);
+          },
+        }),
+      );
+    }
+  };
+
+  return Row({
+    get style() {
+      return { gap: 1, ...(props.style ?? {}) };
+    },
+    get focusable() {
+      return !props.disabled && props.items.length > 0;
+    },
+    get autoFocus() {
+      return props.autoFocus;
+    },
+    get ref() {
+      return props.ref;
+    },
+    onKey: event => {
+      props.onKey?.(event);
+      if (event.defaultPrevented || props.disabled || props.items.length === 0) return;
+      const key = keyPayload(event);
+      if (!key) return;
+
+      if (key.kind === 'left' || key.kind === 'right') {
+        const direction = key.kind === 'right' ? 1 : -1;
+        const current = clampIndex(props.selectedIndex, props.items.length);
+        const next = nextEnabledIndex(
+          current,
+          direction,
+          props.items.length,
+          props.loop ?? false,
+          itemDisabled,
+        );
+        if (next !== current) {
+          const item = props.items[next];
+          if (item !== undefined) props.onSelectionChange?.(next, item);
+        }
+        if (props.onSelectionChange) event.preventDefault();
+        return;
+      }
+
+      if (key.kind === 'enter' && props.onActivate) {
+        const index = clampIndex(props.selectedIndex, props.items.length);
+        const item = props.items[index];
+        if (item !== undefined && !itemDisabled(index)) {
+          props.onActivate(index, item);
+          event.preventDefault();
+        }
+      }
+    },
+    onKeyCapture: props.onKeyCapture,
+    onMouse: props.onMouse,
+    onMouseCapture: props.onMouseCapture,
+    onFocusIn: props.onFocusIn,
+    onFocusInCapture: props.onFocusInCapture,
+    onFocusOut: props.onFocusOut,
+    onFocusOutCapture: props.onFocusOutCapture,
+    get children() {
+      ensureTabs();
+      return tabs.slice(0, props.items.length);
+    },
+  });
+}
+
 export interface ScrollViewProps
   extends Omit<PrimitiveProps, 'children' | 'focusable' | 'onKey'> {
   children: readonly unknown[];
@@ -284,6 +517,8 @@ function isKeyKind(value: string): value is HondoKeyKind {
   return value === 'codepoint'
     || value === 'enter'
     || value === 'backspace'
+    || value === 'tab'
+    || value === 'shiftTab'
     || value === 'escape'
     || value === 'ctrlC'
     || value === 'up'
@@ -297,6 +532,30 @@ function nextIndex(current: number, direction: -1 | 1, count: number, loop: bool
   const next = current + direction;
   if (loop) return (next + count) % count;
   return clamp(next, 0, count - 1);
+}
+
+function nextEnabledIndex(
+  current: number,
+  direction: -1 | 1,
+  count: number,
+  loop: boolean,
+  isDisabled: (index: number) => boolean,
+): number {
+  if (count <= 0) return 0;
+  let candidate = current;
+
+  for (let attempts = 0; attempts < count; attempts += 1) {
+    candidate += direction;
+    if (loop) {
+      candidate = (candidate + count) % count;
+    } else if (candidate < 0 || candidate >= count) {
+      return current;
+    }
+
+    if (!isDisabled(candidate)) return candidate;
+  }
+
+  return current;
 }
 
 function clampIndex(index: number, count: number): number {

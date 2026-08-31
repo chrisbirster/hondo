@@ -4,6 +4,8 @@ pub const Key = union(enum) {
     codepoint: u21,
     enter,
     backspace,
+    tab,
+    shift_tab,
     escape,
     ctrl_c,
     up,
@@ -59,6 +61,7 @@ pub fn decode(bytes: []const u8) ?Decoded {
 
     if (bytes[0] == 0x03) return .{ .event = .{ .key = .ctrl_c }, .consumed = 1 };
     if (bytes[0] == 0x08 or bytes[0] == 0x7f) return .{ .event = .{ .key = .backspace }, .consumed = 1 };
+    if (bytes[0] == '\t') return .{ .event = .{ .key = .tab }, .consumed = 1 };
     if (bytes[0] == '\r' or bytes[0] == '\n') return .{ .event = .{ .key = .enter }, .consumed = 1 };
 
     if (bytes[0] == 0x1b) {
@@ -72,6 +75,7 @@ pub fn decode(bytes: []const u8) ?Decoded {
                 'B' => .{ .event = .{ .key = .down }, .consumed = 3 },
                 'C' => .{ .event = .{ .key = .right }, .consumed = 3 },
                 'D' => .{ .event = .{ .key = .left }, .consumed = 3 },
+                'Z' => .{ .event = .{ .key = .shift_tab }, .consumed = 3 },
                 else => .{ .event = .{ .key = .escape }, .consumed = 1 },
             };
         }
@@ -147,10 +151,12 @@ fn decodeSgrMouse(bytes: []const u8) ?Decoded {
     };
 }
 
-test "terminal input decodes control and arrow keys" {
+test "terminal input decodes control navigation and arrow keys" {
     try std.testing.expectEqual(Key.enter, decode("\r").?.event.key);
     try std.testing.expectEqual(Key.backspace, decode("\x08").?.event.key);
     try std.testing.expectEqual(Key.backspace, decode("\x7f").?.event.key);
+    try std.testing.expectEqual(Key.tab, decode("\t").?.event.key);
+    try std.testing.expectEqual(Key.shift_tab, decode("\x1b[Z").?.event.key);
     try std.testing.expectEqual(Key.escape, decode("\x1b").?.event.key);
     try std.testing.expectEqual(Key.ctrl_c, decode("\x03").?.event.key);
     try std.testing.expectEqual(Key.up, decode("\x1b[A").?.event.key);

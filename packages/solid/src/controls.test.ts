@@ -1,7 +1,7 @@
 import { createSignal, flush } from 'solid-js';
 import { describe, expect, it } from 'vitest';
 import { HondoHost, RecordingMutationBridge, installHost, type HondoNode } from '@hondo/core';
-import { Input, List, ScrollView } from './controls.js';
+import { Input, List, Menu, ScrollView, Tabs, keyPayload } from './controls.js';
 import { Text } from './components.js';
 import { render } from './renderer.js';
 
@@ -132,6 +132,84 @@ describe('List', () => {
   });
 });
 
+describe('Menu', () => {
+  it('skips disabled items, updates controlled selection, and activates enabled items', () => {
+    const items = ['open', 'save', 'quit'];
+    const [selected, setSelected] = createSignal(0);
+    const activated: string[] = [];
+    let menu!: HondoNode;
+
+    const mounted = mountHost(() => {
+      menu = Menu({
+        items,
+        get selectedIndex() {
+          return selected();
+        },
+        loop: true,
+        isDisabled: (_item, index) => index === 1,
+        onSelectionChange: index => setSelected(index),
+        onActivate: (_index, item) => activated.push(item),
+      });
+      return menu;
+    });
+
+    expect(menu.children.map(textContent)).toEqual(['open', 'save', 'quit']);
+
+    mounted.host.dispatchNodeEvent(menu.id, 'key', { kind: 'down' });
+    flush();
+    expect(selected()).toBe(2);
+
+    mounted.host.dispatchNodeEvent(menu.id, 'key', { kind: 'enter' });
+    expect(activated).toEqual(['quit']);
+
+    mounted.host.dispatchNodeEvent(menu.id, 'key', { kind: 'down' });
+    flush();
+    expect(selected()).toBe(0);
+
+    mounted.dispose();
+    mounted.restore();
+  });
+});
+
+describe('Tabs', () => {
+  it('moves horizontally across enabled tabs and activates the selected tab', () => {
+    const items = ['editor', 'git', 'terminal'];
+    const [selected, setSelected] = createSignal(0);
+    const activated: string[] = [];
+    let tabs!: HondoNode;
+
+    const mounted = mountHost(() => {
+      tabs = Tabs({
+        items,
+        get selectedIndex() {
+          return selected();
+        },
+        loop: true,
+        isDisabled: (_item, index) => index === 1,
+        onSelectionChange: index => setSelected(index),
+        onActivate: (_index, item) => activated.push(item),
+      });
+      return tabs;
+    });
+
+    expect(tabs.children.map(textContent)).toEqual(['editor', 'git', 'terminal']);
+
+    mounted.host.dispatchNodeEvent(tabs.id, 'key', { kind: 'right' });
+    flush();
+    expect(selected()).toBe(2);
+
+    mounted.host.dispatchNodeEvent(tabs.id, 'key', { kind: 'enter' });
+    expect(activated).toEqual(['terminal']);
+
+    mounted.host.dispatchNodeEvent(tabs.id, 'key', { kind: 'right' });
+    flush();
+    expect(selected()).toBe(0);
+
+    mounted.dispose();
+    mounted.restore();
+  });
+});
+
 describe('ScrollView', () => {
   it('moves a controlled vertical window with arrow keys', () => {
     const [offset, setOffset] = createSignal(0);
@@ -172,5 +250,16 @@ describe('ScrollView', () => {
 
     mounted.dispose();
     mounted.restore();
+  });
+});
+
+describe('keyPayload', () => {
+  it('recognizes native focus traversal key payloads', () => {
+    const event = {
+      type: 'key',
+      payload: { kind: 'shiftTab' },
+      defaultPrevented: false,
+    } as Parameters<typeof keyPayload>[0];
+    expect(keyPayload(event)).toEqual({ kind: 'shiftTab' });
   });
 });
