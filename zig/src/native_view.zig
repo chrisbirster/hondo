@@ -208,7 +208,7 @@ pub const Registry = struct {
         node_id: scene_module.NodeId,
         constraints: Constraints,
     ) !Size {
-        const instance = self.instance(node_id) orelse return NativeViewError.MissingInstance;
+        const instance = self.findInstance(node_id) orelse return NativeViewError.MissingInstance;
         return instance.component.measure(
             instance.state,
             .{ .registry = self, .node_id = node_id },
@@ -222,7 +222,7 @@ pub const Registry = struct {
         grid: *cell_grid.CellGrid,
         bounds: Bounds,
     ) !void {
-        const instance = self.instance(node_id) orelse return NativeViewError.MissingInstance;
+        const instance = self.findInstance(node_id) orelse return NativeViewError.MissingInstance;
         instance.invalidated = false;
         try instance.component.paint(
             instance.state,
@@ -237,7 +237,7 @@ pub const Registry = struct {
         node_id: scene_module.NodeId,
         event: terminal_input.Event,
     ) !InputResult {
-        const instance = self.instance(node_id) orelse return NativeViewError.MissingInstance;
+        const instance = self.findInstance(node_id) orelse return NativeViewError.MissingInstance;
         const handler = instance.component.input orelse return .ignored;
         return handler(
             instance.state,
@@ -247,7 +247,7 @@ pub const Registry = struct {
     }
 
     pub fn invalidate(self: *Registry, node_id: scene_module.NodeId) void {
-        if (self.instance(node_id)) |entry| entry.invalidated = true;
+        if (self.findInstance(node_id)) |entry| entry.invalidated = true;
     }
 
     pub fn needsRender(self: *const Registry) bool {
@@ -313,7 +313,7 @@ pub const Registry = struct {
         return null;
     }
 
-    fn instance(self: *Registry, node_id: scene_module.NodeId) ?*Instance {
+    fn findInstance(self: *Registry, node_id: scene_module.NodeId) ?*Instance {
         const index = self.findInstanceIndex(node_id) orelse return null;
         return &self.instances.items[index];
     }
@@ -464,7 +464,7 @@ test "NativeView registry owns lifecycle props measurement invalidation and noti
 
     try scene.setPropertyJson(1, "nativeProps", "{\"value\":2}");
     try registry.sync(&scene);
-    const state: *TestState = @ptrCast(@alignCast(registry.instance(1).?.state.?));
+    const state: *TestState = @ptrCast(@alignCast(registry.findInstance(1).?.state.?));
     try std.testing.expectEqual(@as(usize, 1), state.updates);
 
     var grid = try cell_grid.CellGrid.init(std.testing.allocator, 20, 10);
