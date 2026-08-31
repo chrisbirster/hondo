@@ -79,7 +79,7 @@ pub const Manager = struct {
         }
 
         const first_id = first orelse return null;
-        const target: ?scene_module.NodeId = if (self.focused == null or !found_current)
+        const focus_target: ?scene_module.NodeId = if (self.focused == null or !found_current)
             switch (direction) {
                 .forward => first_id,
                 .backward => last,
@@ -89,7 +89,7 @@ pub const Manager = struct {
             .backward => previous orelse if (wrap) last else null,
         };
 
-        const target_id = target orelse return null;
+        const target_id = focus_target orelse return null;
         return self.set(scene, target_id);
     }
 
