@@ -73,6 +73,7 @@ fn encodeKey(allocator: std.mem.Allocator, key: terminal_input.Key) !Encoded {
             .owned = true,
         },
         .enter => .{ .event_type = "key", .payload = "{\"kind\":\"enter\"}" },
+        .backspace => .{ .event_type = "key", .payload = "{\"kind\":\"backspace\"}" },
         .escape => .{ .event_type = "key", .payload = "{\"kind\":\"escape\"}" },
         .ctrl_c => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlC\"}" },
         .up => .{ .event_type = "key", .payload = "{\"kind\":\"up\"}" },
@@ -106,6 +107,10 @@ test "terminal event routing encodes key mouse and terminal focus payloads" {
     const enter = try encode(std.testing.allocator, .{ .key = .enter });
     try std.testing.expectEqualStrings("key", enter.event_type);
     try std.testing.expectEqualStrings("{\"kind\":\"enter\"}", enter.payload);
+
+    const backspace = try encode(std.testing.allocator, .{ .key = .backspace });
+    try std.testing.expectEqualStrings("key", backspace.event_type);
+    try std.testing.expectEqualStrings("{\"kind\":\"backspace\"}", backspace.payload);
 
     const codepoint = try encode(std.testing.allocator, .{ .key = .{ .codepoint = 'λ' } });
     defer std.testing.allocator.free(codepoint.payload);
