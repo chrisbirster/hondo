@@ -239,7 +239,7 @@ test "focused NativeView handles hot-path keys without a JavaScript node dispatc
 
     benchmark_input_count = 0;
     const iterations: usize = 10_000;
-    const start = try std.Io.Clock.Timestamp.now(std.testing.io, .awake);
+    const start = std.Io.Clock.Timestamp.now(std.testing.io, .awake);
     for (0..iterations) |_| {
         const dispatch = try dispatchInteractive(
             std.testing.allocator,
@@ -253,7 +253,7 @@ test "focused NativeView handles hot-path keys without a JavaScript node dispatc
         );
         try std.testing.expectEqual(DispatchPath.native, dispatch.path);
     }
-    const end = try std.Io.Clock.Timestamp.now(std.testing.io, .awake);
+    const end = std.Io.Clock.Timestamp.now(std.testing.io, .awake);
     const elapsed_ns = start.durationTo(end).raw.toNanoseconds();
     try std.testing.expectEqual(iterations, benchmark_input_count);
     try std.testing.expect(elapsed_ns > 0);
