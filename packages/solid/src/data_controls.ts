@@ -1,5 +1,6 @@
 import {
   type HondoNode,
+  type HondoNodeEvent,
   type HondoNodeEventHandler,
 } from '@hondo/core';
 import {
@@ -9,7 +10,7 @@ import {
   type HondoStyle,
   type PrimitiveProps,
 } from './components.js';
-import { keyPayload } from './controls.js';
+import { keyPayload, mousePayload } from './controls.js';
 
 export interface TreeItem<T> {
   id: string;
@@ -186,7 +187,35 @@ export function Tree<T>(props: TreeProps<T>): HondoNode {
       }
     },
     onKeyCapture: props.onKeyCapture,
-    onMouse: props.onMouse,
+    onMouse: event => {
+      props.onMouse?.(event);
+      if (event.defaultPrevented || props.disabled) return;
+      const mouse = mousePayload(event);
+      if (!mouse || mouse.button !== 'left') return;
+
+      const rows = visibleRows();
+      const row = rows.find(candidate => {
+        const cached = rowNodes.get(candidate.item.id);
+        return cached ? nodeContainsTarget(cached.node, event.target) : false;
+      });
+      if (!row || row.item.disabled) return;
+
+      if (mouse.action === 'press') {
+        selectTreeRow(props, row);
+        return;
+      }
+      if (mouse.action !== 'release' || row.item.id !== props.selectedId) return;
+
+      if (row.branch && props.onExpandedChange) {
+        props.onExpandedChange(
+          row.expanded
+            ? removeExpandedId(props.expandedIds, row.item.id)
+            : addExpandedId(props.expandedIds, row.item.id),
+        );
+      } else {
+        props.onActivate?.(row.item.id, row.item);
+      }
+    },
     onMouseCapture: props.onMouseCapture,
     onFocusIn: props.onFocusIn,
     onFocusInCapture: props.onFocusInCapture,
@@ -371,7 +400,28 @@ export function Table<T>(props: TableProps<T>): HondoNode {
       }
     },
     onKeyCapture: props.onKeyCapture,
-    onMouse: props.onMouse,
+    onMouse: event => {
+      props.onMouse?.(event);
+      if (event.defaultPrevented || props.disabled || props.rows.length === 0) return;
+      const mouse = mousePayload(event);
+      if (!mouse || mouse.button !== 'left') return;
+      ensureRows();
+      const index = targetNodeIndex(event, rowNodes, props.rows.length);
+      if (index < 0) return;
+      const row = props.rows[index];
+      if (row === undefined) return;
+
+      if (mouse.action === 'press') {
+        if (index !== clampIndex(props.selectedIndex, props.rows.length)) {
+          props.onSelectionChange?.(index, row);
+        }
+      } else if (
+        mouse.action === 'release'
+        && index === clampIndex(props.selectedIndex, props.rows.length)
+      ) {
+        props.onActivate?.(index, row);
+      }
+    },
     onMouseCapture: props.onMouseCapture,
     onFocusIn: props.onFocusIn,
     onFocusInCapture: props.onFocusInCapture,
@@ -456,6 +506,22 @@ function addExpandedId(ids: readonly string[], id: string): readonly string[] {
 
 function removeExpandedId(ids: readonly string[], id: string): readonly string[] {
   return ids.filter(candidate => candidate !== id);
+}
+
+function targetNodeIndex(event: HondoNodeEvent, nodes: readonly HondoNode[], count: number): number {
+  const limit = Math.min(nodes.length, count);
+  for (let index = 0; index < limit; index += 1) {
+    const node = nodes[index];
+    if (node && nodeContainsTarget(node, event.target)) return index;
+  }
+  return -1;
+}
+
+function nodeContainsTarget(node: HondoNode, target: HondoNode): boolean {
+  for (let current: HondoNode | null = target; current; current = current.parent) {
+    if (current === node) return true;
+  }
+  return false;
 }
 
 function normalizeViewport(viewportSize: number | undefined, count: number): number {
