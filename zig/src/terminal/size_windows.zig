@@ -16,11 +16,13 @@ pub const SizeError = error{
 };
 
 pub fn query(output_fd: i32) SizeError!Size {
-    if (c._isatty(output_fd) != 1) return SizeError.NotTerminal;
+    const handle = try handleForFd(output_fd);
 
-    const os_handle = c._get_osfhandle(output_fd);
-    if (os_handle == -1) return SizeError.InvalidHandle;
-    const handle: c.HANDLE = @ptrFromInt(@as(usize, @intCast(os_handle)));
+    // CRT _isatty() is not reliable for descriptors attached through ConPTY.
+    // Validate the underlying Win32 handle as a console and query its current
+    // visible window directly so resize polling works for pseudoconsoles too.
+    var mode: c.DWORD = 0;
+    if (c.GetConsoleMode(handle, &mode) == 0) return SizeError.NotTerminal;
 
     var info: c.CONSOLE_SCREEN_BUFFER_INFO = undefined;
     if (c.GetConsoleScreenBufferInfo(handle, &info) == 0) return SizeError.QueryFailed;
@@ -33,4 +35,11 @@ pub fn query(output_fd: i32) SizeError!Size {
         .width = @intCast(width),
         .height = @intCast(height),
     };
+}
+
+fn handleForFd(fd: i32) SizeError!c.HANDLE {
+    const os_handle = c._get_osfhandle(fd);
+    if (os_handle == -1) return SizeError.InvalidHandle;
+    const handle: c.HANDLE = @ptrFromInt(@as(usize, @intCast(os_handle)));
+    return handle;
 }
