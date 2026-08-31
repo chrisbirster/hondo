@@ -7,7 +7,7 @@ const grid_width = 64;
 const grid_height = 3;
 const resize_poll_ms = 50;
 const sequence_wait_ms = 10;
-const instructions = "Enter/Space: increment  q/Esc/Ctrl-C: quit";
+const instructions = "Click/Enter/Space: increment  q/Esc/Ctrl-C: quit";
 
 const CounterError = error{
     SmokeAssertionFailed,
@@ -75,12 +75,15 @@ const CounterApp = struct {
     }
 
     fn dispatchInput(self: *CounterApp, event: hondo.terminal.input.Event) !hondo.node_events.Result {
-        return hondo.input_events.dispatchFocused(
+        const grid = self.renderer.grid();
+        return hondo.input_events.dispatchInteractive(
             self.allocator,
             &self.runtime,
             self.scene,
             &self.focus,
             event,
+            grid.width,
+            grid.height,
         );
     }
 
@@ -244,6 +247,7 @@ fn isActivationEvent(event: hondo.terminal.input.Event) bool {
             .codepoint => |codepoint| codepoint == ' ',
             else => false,
         },
+        .mouse => |mouse| mouse.button == .left and mouse.action == .press,
         else => false,
     };
 }
