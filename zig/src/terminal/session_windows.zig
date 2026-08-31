@@ -32,7 +32,19 @@ pub const Session = struct {
         if (c.GetConsoleMode(output_handle, &original_output_mode) == 0) return SessionError.NotTerminal;
 
         var raw_input_mode = original_input_mode;
-        raw_input_mode &= ~@as(c.DWORD, c.ENABLE_ECHO_INPUT | c.ENABLE_LINE_INPUT | c.ENABLE_PROCESSED_INPUT);
+        raw_input_mode &= ~@as(
+            c.DWORD,
+            c.ENABLE_ECHO_INPUT |
+                c.ENABLE_LINE_INPUT |
+                c.ENABLE_PROCESSED_INPUT |
+                c.ENABLE_WINDOW_INPUT,
+        );
+        // Hondo polls the output buffer for resize changes itself. Leaving
+        // ENABLE_WINDOW_INPUT set causes a WINDOW_BUFFER_SIZE_EVENT to signal
+        // the console input handle; a following CRT ReadFile/_read then waits
+        // for character data and can wedge the event loop before the next key.
+        // Keep Windows in VT byte-stream mode and reserve the input wait for
+        // actual VT keyboard/mouse/focus sequences.
         raw_input_mode |= c.ENABLE_VIRTUAL_TERMINAL_INPUT;
         if (c.SetConsoleMode(input_handle, raw_input_mode) == 0) return SessionError.EnterRawModeFailed;
 
