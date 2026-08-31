@@ -25,9 +25,14 @@ export type HondoColor =
 export type HondoAlign = 'start' | 'center' | 'end' | 'stretch';
 export type HondoJustify = 'start' | 'center' | 'end' | 'space-between';
 export type HondoDirection = 'row' | 'column';
+export type HondoPosition = 'flow' | 'overlay';
 
 export interface HondoStyle {
   direction?: HondoDirection;
+  position?: HondoPosition;
+  x?: number;
+  y?: number;
+  zIndex?: number;
   width?: number;
   height?: number;
   minWidth?: number;

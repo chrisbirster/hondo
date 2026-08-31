@@ -22,6 +22,11 @@ pub const Justify = enum {
     space_between,
 };
 
+pub const Position = enum {
+    flow,
+    overlay,
+};
+
 pub const Edges = struct {
     top: usize = 0,
     right: usize = 0,
@@ -39,6 +44,10 @@ pub const Edges = struct {
 
 pub const LayoutStyle = struct {
     direction: Direction = .column,
+    position: Position = .flow,
+    x: usize = 0,
+    y: usize = 0,
+    z_index: usize = 0,
     width: ?usize = null,
     height: ?usize = null,
     min_width: ?usize = null,
@@ -74,14 +83,72 @@ const ChildLayout = struct {
     main: usize,
 };
 
+const OverlayLayout = struct {
+    id: scene_module.NodeId,
+    style: LayoutStyle,
+    measured: Size,
+};
+
 pub fn render(scene: *scene_module.Scene, grid: *cell_grid.CellGrid) !void {
     grid.clear();
-    try renderNode(scene, 0, grid, .{
+    const viewport = Rect{
         .x = 0,
         .y = 0,
         .width = grid.width,
         .height = grid.height,
-    });
+    };
+    try renderNode(scene, 0, grid, viewport);
+    try renderOverlays(scene, grid, viewport);
+}
+
+fn renderOverlays(
+    scene: *scene_module.Scene,
+    grid: *cell_grid.CellGrid,
+    viewport: Rect,
+) !void {
+    var overlays: std.ArrayList(OverlayLayout) = .empty;
+    defer overlays.deinit(scene.allocator);
+
+    for (scene.nodes.items) |maybe_node| {
+        const node = maybe_node orelse continue;
+        if (node.id == 0) continue;
+        const style = try styleForNode(scene, node.id, node.type_name);
+        if (style.position != .overlay) continue;
+        try overlays.append(scene.allocator, .{
+            .id = node.id,
+            .style = style,
+            .measured = try measureNode(scene, node.id),
+        });
+    }
+
+    var i: usize = 0;
+    while (i < overlays.items.len) : (i += 1) {
+        var j = i + 1;
+        while (j < overlays.items.len) : (j += 1) {
+            if (overlays.items[j].style.z_index < overlays.items[i].style.z_index) {
+                const tmp = overlays.items[i];
+                overlays.items[i] = overlays.items[j];
+                overlays.items[j] = tmp;
+            }
+        }
+    }
+
+    for (overlays.items) |overlay| {
+        const x = @min(overlay.style.x, viewport.width);
+        const y = @min(overlay.style.y, viewport.height);
+        const available_width = viewport.width - x;
+        const available_height = viewport.height - y;
+        const width = @min(overlay.measured.width, available_width);
+        const height = @min(overlay.measured.height, available_height);
+        if (width == 0 or height == 0) continue;
+
+        try renderNode(scene, overlay.id, grid, .{
+            .x = viewport.x +| x,
+            .y = viewport.y +| y,
+            .width = width,
+            .height = height,
+        });
+    }
 }
 
 fn renderNode(
@@ -119,6 +186,7 @@ fn renderNode(
     for (node.children.items) |child_id| {
         const child = try scene.getNode(child_id);
         const child_style = try styleForNode(scene, child_id, child.type_name);
+        if (child_style.position == .overlay) continue;
         const measured = try measureNode(scene, child_id);
         try children.append(scene.allocator, .{
             .id = child_id,
@@ -214,13 +282,16 @@ fn measureNode(scene: *scene_module.Scene, node_id: scene_module.NodeId) !Size {
 
     var main_total: usize = 0;
     var cross_max: usize = 0;
-    for (node.children.items, 0..) |child_id, index| {
+    var flow_count: usize = 0;
+    for (node.children.items) |child_id| {
         const child = try scene.getNode(child_id);
         const child_style = try styleForNode(scene, child_id, child.type_name);
+        if (child_style.position == .overlay) continue;
         const measured = try measureNode(scene, child_id);
+        if (flow_count > 0) main_total +|= style.gap;
         main_total +|= mainBase(child_style, measured, style.direction);
         cross_max = @max(cross_max, crossBase(child_style, measured, style.direction));
-        if (index + 1 < node.children.items.len) main_total +|= style.gap;
+        flow_count += 1;
     }
 
     const content = switch (style.direction) {
@@ -418,6 +489,13 @@ fn styleForNode(
         if (std.mem.eql(u8, direction, "row")) style.direction = .row;
         if (std.mem.eql(u8, direction, "column")) style.direction = .column;
     }
+    if (jsonStringValue(json, "position")) |position| {
+        if (std.mem.eql(u8, position, "overlay")) style.position = .overlay;
+        if (std.mem.eql(u8, position, "flow")) style.position = .flow;
+    }
+    style.x = jsonUnsignedValue(json, "x") orelse 0;
+    style.y = jsonUnsignedValue(json, "y") orelse 0;
+    style.z_index = jsonUnsignedValue(json, "zIndex") orelse 0;
     style.width = jsonUnsignedValue(json, "width");
     style.height = jsonUnsignedValue(json, "height");
     style.min_width = jsonUnsignedValue(json, "minWidth");
@@ -752,4 +830,60 @@ test "clip false permits child content to paint beyond parent main size" {
     const row = try grid.rowUtf8(std.testing.allocator, 0);
     defer std.testing.allocator.free(row);
     try std.testing.expectEqualStrings("ABC ", row);
+}
+
+test "overlay nodes do not consume flow space and paint at viewport coordinates" {
+    var scene = try scene_module.Scene.init(std.testing.allocator);
+    defer scene.deinit();
+
+    try scene.createElement(1, "text");
+    try scene.createText(2, "BASE");
+    try scene.createElement(3, "box");
+    try scene.createElement(4, "text");
+    try scene.createText(5, "POP");
+    try scene.setPropertyJson(3, "style", "{\"position\":\"overlay\",\"x\":1,\"y\":0,\"width\":3,\"height\":1}");
+    try scene.insertNode(0, 1, null);
+    try scene.insertNode(1, 2, null);
+    try scene.insertNode(0, 3, null);
+    try scene.insertNode(3, 4, null);
+    try scene.insertNode(4, 5, null);
+
+    var grid = try cell_grid.CellGrid.init(std.testing.allocator, 4, 2);
+    defer grid.deinit();
+    try render(&scene, &grid);
+
+    const first = try grid.rowUtf8(std.testing.allocator, 0);
+    defer std.testing.allocator.free(first);
+    const second = try grid.rowUtf8(std.testing.allocator, 1);
+    defer std.testing.allocator.free(second);
+    try std.testing.expectEqualStrings("BPOP", first);
+    try std.testing.expectEqualStrings("    ", second);
+}
+
+test "overlay zIndex paints higher layers last regardless of scene insertion order" {
+    var scene = try scene_module.Scene.init(std.testing.allocator);
+    defer scene.deinit();
+
+    try scene.createElement(1, "box");
+    try scene.createElement(2, "text");
+    try scene.createText(3, "TOP");
+    try scene.createElement(4, "box");
+    try scene.createElement(5, "text");
+    try scene.createText(6, "LOW");
+    try scene.setPropertyJson(1, "style", "{\"position\":\"overlay\",\"zIndex\":9,\"width\":3,\"height\":1}");
+    try scene.setPropertyJson(4, "style", "{\"position\":\"overlay\",\"zIndex\":1,\"width\":3,\"height\":1}");
+    try scene.insertNode(0, 1, null);
+    try scene.insertNode(1, 2, null);
+    try scene.insertNode(2, 3, null);
+    try scene.insertNode(0, 4, null);
+    try scene.insertNode(4, 5, null);
+    try scene.insertNode(5, 6, null);
+
+    var grid = try cell_grid.CellGrid.init(std.testing.allocator, 3, 1);
+    defer grid.deinit();
+    try render(&scene, &grid);
+
+    const row = try grid.rowUtf8(std.testing.allocator, 0);
+    defer std.testing.allocator.free(row);
+    try std.testing.expectEqualStrings("TOP", row);
 }
