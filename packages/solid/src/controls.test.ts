@@ -259,7 +259,7 @@ describe('keyPayload', () => {
       type: 'key',
       payload: { kind: 'shiftTab' },
       defaultPrevented: false,
-    } as Parameters<typeof keyPayload>[0];
+    } as unknown as Parameters<typeof keyPayload>[0];
     expect(keyPayload(event)).toEqual({ kind: 'shiftTab' });
   });
 });
