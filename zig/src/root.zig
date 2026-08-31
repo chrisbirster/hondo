@@ -10,6 +10,7 @@ pub const scene = @import("scene.zig");
 pub const style = @import("render/style.zig");
 pub const cell_grid = @import("render/cell_grid.zig");
 pub const scene_renderer = @import("render/scene_renderer.zig");
+pub const hit_test = @import("render/hit_test.zig");
 pub const terminal = @import("terminal/mod.zig");
 pub const version = "0.1.0-alpha.2";
 
@@ -34,5 +35,6 @@ test {
     _ = style;
     _ = cell_grid;
     _ = scene_renderer;
+    _ = hit_test;
     _ = terminal;
 }
