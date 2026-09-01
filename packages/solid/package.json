@@ -1,17 +1,26 @@
 {
   "name": "@hondo/solid",
-  "version": "0.1.0-alpha.2",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
+  "description": "SolidJS renderer, primitives, controls, styling, and NativeView bindings for Hondo.",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
+  "files": ["dist", "README.md"],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "npm run build"
   },
   "dependencies": {
-    "@hondo/core": "0.1.0-alpha.2",
+    "@hondo/core": "0.1.0",
     "@solidjs/universal": "2.0.0-rc.4"
   },
   "peerDependencies": {
@@ -19,5 +28,11 @@
   },
   "devDependencies": {
     "solid-js": "2.0.0-rc.4"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

@@ -1,9 +1,9 @@
 # Hondo examples
 
-Examples are intentionally layered with the implementation milestones.
+The examples are independent workspace consumers of the public Hondo packages.
 
-- `counter/` starts as a Solid 2 signal-only compile target in M0.
-- M1 turns it into the first `@solidjs/universal` Hondo host-tree example.
-- M2 renders the same logical app through the Zig terminal engine.
+- `counter/` — smallest Solid 2 signal -> Hondo -> Zig vertical slice and executable smoke target.
+- `dashboard/` — layout, color, attributes, refs and focus composition.
+- `showcase/` — release-level non-Zim surface combining Input, Tabs, Tree, Table, ScrollView, Popup, typed styling, focus, keyboard navigation and mouse-capable controls.
 
-Examples must not import DOM APIs, `solid-js/web`, browser globals, or a WebView runtime.
+Examples must not import DOM APIs, `solid-js/web`, browser globals or a WebView runtime.

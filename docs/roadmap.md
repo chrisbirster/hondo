@@ -1,193 +1,108 @@
 # Hondo roadmap
 
-Hondo follows a milestone train from pre-alpha foundation to a first usable `v0.1.0`.
+Hondo follows a milestone train from foundation to the first usable `v0.1.0`.
 
-## M0 — Foundation
+## Status
 
-Target: `v0.1.0-alpha.1`
+| Milestone | Status | Evidence |
+| --- | --- | --- |
+| M0 — Foundation | ✅ complete | workspace/toolchain/CI established |
+| M1 — Solid to Zig vertical slice | ✅ complete | Solid signal + native input round-trip |
+| M2 — Native terminal engine | ✅ complete | Linux/macOS PTY + Windows ConPTY lifecycle coverage |
+| M3 — Layout and primitives | ✅ complete | terminal-native layout/component API |
+| M4 — Styling decision | ✅ complete | typed native style model selected |
+| M5 — TUI component library | ✅ complete | controls, overlays, focus and mouse interactions |
+| M6 — NativeView | ✅ complete | native lifecycle/layout/paint/direct-input path |
+| M7 — Zim integration | ⬜ open | work primarily belongs in `chrisbirster/zim` |
+| M8 — Hondo v0.1.0 | 🟨 release-ready except M7 proof | packaging/docs/release hardening complete |
 
-Goal: establish Hondo as an independent Solid terminal project.
+## M0 — Foundation ✅
 
-Tasks:
+- [x] monorepo/workspace layout
+- [x] Zig 0.16 build foundation
+- [x] TypeScript/Solid workspace
+- [x] pinned Node/npm versions
+- [x] Solid 2 and `@solidjs/universal`
+- [x] QuickJS dependency strategy
+- [x] JS/Zig ownership contract
+- [x] Linux/macOS/Windows CI
+- [x] Zig and TypeScript gates
+- [x] examples skeleton
+- [x] MIT license
 
-- [ ] monorepo/workspace layout
-- [ ] Zig 0.16 build foundation
-- [ ] TypeScript/Solid workspace
-- [ ] pin supported Node/pnpm versions
-- [ ] Solid 2 dependency
-- [ ] `@solidjs/universal` dependency
-- [ ] QuickJS dependency strategy
-- [ ] JS/Zig ownership contract
-- [ ] Linux/macOS/Windows CI
-- [ ] Zig tests and formatting
-- [ ] TypeScript tests, typecheck, and formatting
-- [ ] examples skeleton
-- [ ] license decision before the first public release
+## M1 — Solid to Zig vertical slice ✅
 
-Exit: the repository builds and tests on all three desktop OSes and the runtime boundaries are explicit.
+- [x] embedded QuickJS
+- [x] bundled Solid application execution
+- [x] Hondo host-node identity/tree
+- [x] universal renderer host operations
+- [x] compact JS/Zig mutation protocol
+- [x] Zig scene tree
+- [x] Solid signal update reaches Zig
+- [x] Zig input reaches a Solid callback
+- [x] deterministic disposal/cleanup
+- [x] lifecycle tests and counter example
 
-## M1 — Solid to Zig vertical slice
+## M2 — Native terminal engine ✅
 
-Target: `v0.1.0-alpha.2`
+- [x] raw mode and guaranteed restoration
+- [x] alternate screen
+- [x] keyboard, mouse, focus and resize input
+- [x] Unicode/grapheme and terminal-width semantics
+- [x] terminal capability model
+- [x] color and text attributes
+- [x] cell representation/current+previous grids/diff
+- [x] ANSI writer, clipping and invalidation
+- [x] focus model and traversal
+- [x] Linux/macOS PTY and Windows ConPTY integration tests
 
-Goal: prove Solid 2 -> `@solidjs/universal` -> QuickJS -> Zig.
+## M3 — Layout and primitive components ✅
 
-Tasks:
+- [x] `Text`, `Box`, `Stack`, `Row`, `Column`, `Spacer`
+- [x] width/height/min/max, grow/shrink
+- [x] padding, gap, alignment and clipping
+- [x] foreground/background and text attributes
+- [x] refs and keyboard focus
+- [x] capture/target/bubble event propagation
+- [x] dashboard snapshots/example
 
-- [ ] embed QuickJS
-- [ ] load bundled Solid application code
-- [ ] implement Hondo host-node identity/tree
-- [ ] implement universal renderer host operations
-- [ ] define compact JS/Zig mutation protocol
-- [ ] implement Zig scene tree
-- [ ] Solid signal update reaches Zig
-- [ ] Zig input event reaches a Solid callback
-- [ ] deterministic disposal/cleanup
-- [ ] host-tree lifecycle tests
-- [ ] counter example
+## M4 — Styling decision ✅
 
-Exit: a terminal input event changes a Solid signal and only the affected text host node is mutated.
-
-## M2 — Native terminal engine
-
-Target: `v0.1.0-alpha.3`
-
-Goal: make Hondo a real terminal runtime.
-
-Tasks:
-
-- [ ] raw mode
-- [ ] guaranteed restoration
-- [ ] alternate screen
-- [ ] keyboard decoding
-- [ ] resize events
-- [ ] Unicode/grapheme foundation
-- [ ] terminal capability detection
-- [ ] color support
-- [ ] mouse foundation
-- [ ] cell representation
-- [ ] current/previous cell grids
-- [ ] cell-grid diff
-- [ ] minimal ANSI writer
-- [ ] clipping
-- [ ] invalidation
-- [ ] focus model
-- [ ] Linux/macOS/Windows terminal tests
-
-Exit: Hondo safely enters a terminal UI, reacts to input/resize, renders incremental cell changes, and restores the terminal on exit.
-
-## M3 — Layout and primitive components
-
-Target: `v0.1.0-beta.1`
-
-Goal: make Hondo useful for ordinary terminal applications.
-
-Tasks:
-
-- [ ] `Text`
-- [ ] `Box`
-- [ ] `Stack`
-- [ ] `Row`
-- [ ] `Column`
-- [ ] `Spacer`
-- [ ] width/height/min/max sizing
-- [ ] grow/shrink behavior
-- [ ] row/column layout
-- [ ] padding and gap
-- [ ] alignment
-- [ ] clipping
-- [ ] foreground/background colors
-- [ ] bold/italic/underline/dim/inverse
-- [ ] refs
-- [ ] keyboard focus
-- [ ] event propagation
-- [ ] snapshots/examples
-
-Exit: a useful small dashboard can be written entirely as Solid/Hondo components.
-
-## M4 — Styling decision
-
-Target: `v0.1.0-beta.*`
-
-Goal: choose a terminal-native styling model from evidence.
-
-Spikes:
-
-- [ ] StyleX authoring adapter without a CSS runtime
-- [ ] modifier-composition model
-- [ ] Hondo-native typed style-object model
-
-Evaluate:
-
-- [ ] TypeScript ergonomics
-- [ ] static extraction potential
-- [ ] dynamic/reactive styles
-- [ ] serialization cost
-- [ ] Zig representation
-- [ ] themes/tokens
-- [ ] variants
-- [ ] composability
+- [x] StyleX-shaped authoring spike without CSS runtime
+- [x] modifier-composition spike
+- [x] Hondo-native typed style-object model
+- [x] TypeScript ergonomics and reactive styles
+- [x] serialization/Zig representation evaluation
+- [x] themes/tokens, variants and composition evaluation
+- [x] selected model documented in `docs/styling-decision.md`
 
 Invariant: Hondo does not embed a CSS engine.
 
-Exit: one styling model is selected and documented; rejected approaches are recorded with reasons.
+## M5 — TUI component library ✅
 
-## M5 — TUI component library
+- [x] `Input`, `List`, `Menu`, `Popup`
+- [x] `Tree`, `Table`, `Tabs`, `ScrollView`
+- [x] keyboard navigation and selection
+- [x] scrolling and focus traversal
+- [x] overlays/z-order and popup positioning
+- [x] controlled text editing for `Input`
+- [x] spatial mouse interactions and click-to-focus
 
-Target: `v0.1.0-beta.2`
+## M6 — NativeView ✅
 
-Goal: provide editor-quality reusable terminal controls.
+- [x] native component registration and lifecycle
+- [x] measurement and layout constraints
+- [x] native paint and invalidation
+- [x] focus handoff and direct input routing
+- [x] native -> Solid state notifications
+- [x] Solid -> native property changes
+- [x] native-first hot-path benchmark/proof
 
-Tasks:
+Exit proved: a focused native view can process handled input and paint entirely in Zig while participating in Hondo layout.
 
-- [ ] `Input`
-- [ ] `List`
-- [ ] `Menu`
-- [ ] `Popup`
-- [ ] `Tree`
-- [ ] `Table`
-- [ ] `Tabs`
-- [ ] `ScrollView`
-- [ ] keyboard navigation
-- [ ] selection
-- [ ] scrolling
-- [ ] focus traversal
-- [ ] overlays/z-order
-- [ ] popup positioning
-- [ ] text editing for `Input`
-- [ ] mouse interactions where appropriate
-
-Exit: developers can build a useful non-Zim TUI without writing native Zig controls.
-
-## M6 — NativeView
-
-Target: `v0.1.0-rc.1`
-
-Goal: support heavyweight Zig-native regions embedded in a Solid/Hondo UI.
-
-Tasks:
-
-- [ ] native component registration
-- [ ] native measurement
-- [ ] layout bounds/constraints
-- [ ] paint callback
-- [ ] native invalidation
-- [ ] focus handoff
-- [ ] direct input routing
-- [ ] lifecycle ownership
-- [ ] native -> Solid state notifications
-- [ ] Solid -> native property changes
-- [ ] performance benchmarks
-
-Exit: a focused native view can process input and paint entirely in Zig while participating in a Hondo layout.
-
-## M7 — Zim integration
+## M7 — Zim integration ⬜
 
 Target: integration milestone; most work occurs in the Zim repository.
-
-Goal: prove Hondo as the reactive application UI for a real terminal-first editor while keeping Zim's editing hot path native.
-
-Tasks:
 
 - [ ] Zim consumes Hondo as an external dependency
 - [ ] Hondo renders Zim application chrome
@@ -199,36 +114,31 @@ Tasks:
 
 Exit: Zim can be edited interactively with Hondo UI around a Zig-native editor viewport.
 
-## M8 — Hondo v0.1.0
-
-Target: `v0.1.0`
+## M8 — Hondo v0.1.0 🟨
 
 Release criteria:
 
-- [ ] Solid 2 integration
-- [ ] `@solidjs/universal` renderer
-- [ ] QuickJS runtime
-- [ ] Zig terminal renderer
-- [ ] terminal input/output lifecycle
-- [ ] cell-grid diffing
-- [ ] cross-platform CI
-- [ ] primitive/component library
-- [ ] documented styling model
-- [ ] NativeView API
-- [ ] independent examples
+- [x] Solid 2 integration
+- [x] `@solidjs/universal` renderer
+- [x] QuickJS runtime
+- [x] Zig terminal renderer
+- [x] terminal input/output lifecycle
+- [x] cell-grid diffing
+- [x] cross-platform CI
+- [x] primitive/component library
+- [x] documented styling model
+- [x] NativeView API
+- [x] independent examples
 - [ ] Zim integration proof
-- [ ] documented public API
+- [x] documented public API
+- [x] release notes and compatibility notes
+- [x] buildable/packageable `@hondo/core` and `@hondo/solid`
 
-## Release train
+Final release exit after M7 proof:
 
-```text
-M0   -> v0.1.0-alpha.1
-M1   -> v0.1.0-alpha.2
-M2   -> v0.1.0-alpha.3
-M3   -> v0.1.0-beta.1
-M4/5 -> v0.1.0-beta.2
-M6   -> v0.1.0-rc.1
-M7/8 -> v0.1.0
-```
+1. merge the release-ready `dev` tree to `main`;
+2. verify exact `main` CI on Linux/macOS/Windows including PTY/ConPTY;
+3. tag `v0.1.0` and create the GitHub Release;
+4. attach npm-compatible package tarballs.
 
 After `v0.1.0`, Hondo follows Semantic Versioning. During `0.x`, breaking API evolution is expected and must be called out explicitly in release notes.

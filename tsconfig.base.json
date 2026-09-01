@@ -7,6 +7,11 @@
     "skipLibCheck": true,
     "noEmit": true,
     "verbatimModuleSyntax": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@hondo/core": ["packages/core/src/index.ts"],
+      "@hondo/solid": ["packages/solid/src/index.ts"]
+    }
   }
 }

@@ -3,43 +3,96 @@
 **Terminal-native SolidJS.**  
 *A most profitable arrangement.*
 
-Hondo is an independent framework for building native terminal interfaces with SolidJS. It combines Solid 2 fine-grained reactivity and `@solidjs/universal` with a Zig terminal host and renderer.
+Hondo is an independent framework for building native terminal interfaces with SolidJS 2. Solid owns reactive application composition; Zig owns terminal lifecycle, layout, cell rendering, input, focus, hit testing, and heavyweight native regions.
 
-Hondo is not part of StingJS. It borrows the proven custom-renderer model while defining a terminal-specific host, component system, layout engine, cell grid, and input stack.
+## What is included
 
-## Principles
+- Solid 2 + `@solidjs/universal` renderer
+- QuickJS application runtime with a compact Zig host bridge
+- Unicode/grapheme-aware terminal cell engine and incremental ANSI diffing
+- Linux/macOS PTY and Windows ConPTY lifecycle coverage
+- layout primitives: `Text`, `Box`, `Stack`, `Row`, `Column`, `Spacer`
+- controls: `Input`, `List`, `Menu`, `Popup`, `Tree`, `Table`, `Tabs`, `ScrollView`
+- terminal-native typed styling with tokens and composition
+- keyboard focus, capture/target/bubble events, mouse hit testing, overlays and z-order
+- `NativeView` for Zig-owned regions whose hot path bypasses QuickJS/Solid
 
-- Terminal-native: no DOM, browser, WebView, or CSS engine is required at runtime.
-- Solid owns reactive UI composition; Zig owns terminal mechanics and rendering.
-- QuickJS executes Solid/Hondo application code, not performance-critical native editor loops.
-- Hondo stays general-purpose and must not depend on Zim.
-- Heavy native views can bypass JavaScript for their hot paths.
-- Styling remains an explicit experiment until a terminal-native model is proven.
+Hondo does not use a DOM, browser, WebView, React-style reconciliation, or a CSS runtime.
 
 ## Architecture
 
 ```text
-Solid 2 / JSX
-      |
+Solid 2 application
+       |
 @solidjs/universal
-      |
+       |
  Hondo host tree
-      |
- QuickJS <-> Zig host bridge
-      |
- layout + scene tree
-      |
-   cell grid
-      |
- terminal diff / ANSI
+       |
+QuickJS <-> compact Zig bridge
+       |
+ scene/layout/focus/input
+       |
+ cell grid + ANSI diff
+       |
+    terminal
+
+NativeView hot path:
+terminal input -> Zig NativeView -> native paint
+                     |
+              coarse notifications
+                     v
+                   Solid
 ```
 
-See [`docs/architecture.md`](docs/architecture.md), [`docs/roadmap.md`](docs/roadmap.md), and [`docs/development.md`](docs/development.md).
+## Packages
+
+```ts
+import {
+  Box,
+  Input,
+  NativeView,
+  Popup,
+  Table,
+  Tabs,
+  Text,
+  Tree,
+  defineStyles,
+  render,
+} from '@hondo/solid';
+```
+
+- `@hondo/core` — host tree, bridge types, node events and runtime-facing TypeScript APIs.
+- `@hondo/solid` — Solid renderer, components, controls, styling and `NativeView` binding.
+
+See [`docs/api.md`](docs/api.md) for the public API and [`docs/compatibility.md`](docs/compatibility.md) for the supported toolchain.
+
+## Examples
+
+- `examples/counter` — minimal signal/input vertical slice.
+- `examples/dashboard` — layout and styling example.
+- `examples/showcase` — non-Zim application surface combining controls, navigation, overlays and reactive state.
 
 ## Flagship consumer
 
-Zim is intended to become Hondo's demanding first real-world consumer while remaining a separate repository and product. Hondo itself must remain useful for unrelated terminal applications.
+Zim is Hondo's intended first demanding external consumer. Zim remains a separate repository: Hondo provides application chrome and the `NativeView` boundary while Zim keeps its editor buffer, cursor, selection and editing hot path in Zig.
+
+## Development
+
+```sh
+npm install
+npm run typecheck
+npm test
+npm run build
+npm run pack:check
+zig fmt --check zig build.zig
+zig build test
+zig build counter-smoke
+```
+
+CI runs the supported gates on Ubuntu, macOS and Windows, including real PTY/ConPTY lifecycle smoke tests.
 
 ## Status
 
-Pre-alpha. The initial work is focused on proving the Solid -> `@solidjs/universal` -> QuickJS -> Zig -> terminal vertical slice.
+The Hondo framework through M6 is complete and release-hardened for `v0.1.0`. The remaining project-level release criterion is the external Zim integration proof tracked in M7.
+
+See [`docs/roadmap.md`](docs/roadmap.md), [`docs/architecture.md`](docs/architecture.md), and [`docs/development.md`](docs/development.md).
