@@ -15,6 +15,12 @@ const runtime_bootstrap =
     \\    Promise.resolve().then(callback);
     \\  };
     \\}
+    \\if (typeof globalThis.console !== "object" || globalThis.console === null) {
+    \\  const noop = function noop() {};
+    \\  globalThis.console = new Proxy({}, {
+    \\    get: function getConsoleMethod() { return noop; },
+    \\  });
+    \\}
 ;
 
 pub const RuntimeError = error{
@@ -233,11 +239,22 @@ fn dumpException(context: *c.JSContext) void {
     defer c.JS_FreeValue(context, exception);
 
     const message = c.JS_ToCString(context, exception);
-    if (message == null) return;
-    defer c.JS_FreeCString(context, message);
+    if (message != null) {
+        defer c.JS_FreeCString(context, message);
+        const zero_terminated: [*:0]const u8 = @ptrCast(message);
+        std.debug.print("Hondo QuickJS exception: {s}\n", .{std.mem.span(zero_terminated)});
+    }
 
-    const zero_terminated: [*:0]const u8 = @ptrCast(message);
-    std.debug.print("Hondo QuickJS exception: {s}\n", .{std.mem.span(zero_terminated)});
+    const stack = c.JS_GetPropertyStr(context, exception, "stack");
+    defer c.JS_FreeValue(context, stack);
+    if (c.JS_IsUndefined(stack) == 0) {
+        const stack_text = c.JS_ToCString(context, stack);
+        if (stack_text != null) {
+            defer c.JS_FreeCString(context, stack_text);
+            const stack_zero: [*:0]const u8 = @ptrCast(stack_text);
+            std.debug.print("Hondo QuickJS stack:\n{s}\n", .{std.mem.span(stack_zero)});
+        }
+    }
 }
 
 test "QuickJS evaluates JavaScript in the Zig runtime" {

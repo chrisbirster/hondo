@@ -2,22 +2,36 @@
 """CI-only PTY harness for the interactive Hondo counter example."""
 
 import errno
+import fcntl
 import os
 import pty
 import select
 import signal
+import struct
 import sys
+import termios
 import time
 
 TIMEOUT_SECONDS = 30
 READY_MARKER = b"Count: 0"
+INCREMENTAL_UPDATE = b"\x1b[1;8H1"
+INITIAL_ROWS = 8
+INITIAL_COLUMNS = 64
+RESIZED_ROWS = 10
+RESIZED_COLUMNS = 50
 ORDERED_MARKERS = (
     b"\x1b[?1049h",
-    b"Count: 0",
-    b"Count: 1",
+    b"\x1b[H",
+    READY_MARKER,
+    b"\x1b[H",
+    INCREMENTAL_UPDATE,
     b"\x1b[?25h",
     b"\x1b[?1049l",
 )
+
+
+def set_winsize(fd: int, rows: int, columns: int) -> None:
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, columns, 0, 0))
 
 
 def fail(message: str, output: bytes) -> None:
@@ -33,10 +47,14 @@ def main() -> None:
 
     pid, master_fd = pty.fork()
     if pid == 0:
+        set_winsize(0, INITIAL_ROWS, INITIAL_COLUMNS)
         os.execvp(command[0], command)
 
     output = bytearray()
     deadline = time.monotonic() + TIMEOUT_SECONDS
+    resize_sent = False
+    resize_observed = False
+    resize_search_start = 0
     sent_enter = False
 
     try:
@@ -62,17 +80,27 @@ def main() -> None:
                 break
 
             output.extend(chunk)
-            if not sent_enter and READY_MARKER in output:
-                # Wait for the application's first real terminal frame instead of
-                # pre-feeding input that TCSAFLUSH correctly discards on raw-mode entry.
-                os.write(master_fd, b"\r")
-                sent_enter = True
+            if not resize_sent and READY_MARKER in output:
+                resize_search_start = len(output)
+                set_winsize(master_fd, RESIZED_ROWS, RESIZED_COLUMNS)
+                resize_sent = True
+
+            if resize_sent and not resize_observed:
+                resize_index = output.find(b"\x1b[H", resize_search_start)
+                if resize_index >= 0:
+                    resize_observed = True
+                    os.write(master_fd, b"\r")
+                    sent_enter = True
     finally:
         os.close(master_fd)
 
     _, status = os.waitpid(pid, 0)
-    if not sent_enter:
+    if not resize_sent:
         fail("initial Count: 0 frame was never observed", bytes(output))
+    if not resize_observed:
+        fail("terminal resize did not trigger a fresh frame", bytes(output))
+    if not sent_enter:
+        fail("increment input was never sent", bytes(output))
     if not os.WIFEXITED(status) or os.WEXITSTATUS(status) != 0:
         fail(f"counter exited with status {status}", bytes(output))
 
@@ -83,7 +111,7 @@ def main() -> None:
             fail(f"missing ordered marker {marker!r}", bytes(output))
         cursor = index + len(marker)
 
-    sys.stdout.write("Hondo PTY lifecycle smoke passed\n")
+    sys.stdout.write("Hondo PTY resize + incremental-render smoke passed\n")
 
 
 if __name__ == "__main__":

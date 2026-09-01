@@ -19,22 +19,24 @@ pub const Session = struct {
     active: bool = true,
 
     pub fn begin(input_fd: c_int, output_fd: c_int) SessionError!Session {
-        if (c._isatty(input_fd) != 1 or c._isatty(output_fd) != 1) return SessionError.NotTerminal;
+        const input_handle = handleForFd(input_fd) catch return SessionError.NotTerminal;
+        const output_handle = handleForFd(output_fd) catch return SessionError.NotTerminal;
 
-        const input_os_handle = c._get_osfhandle(input_fd);
-        const output_os_handle = c._get_osfhandle(output_fd);
-        if (input_os_handle == -1 or output_os_handle == -1) return SessionError.InvalidHandle;
-
-        const input_handle: c.HANDLE = @ptrFromInt(@as(usize, @intCast(input_os_handle)));
-        const output_handle: c.HANDLE = @ptrFromInt(@as(usize, @intCast(output_os_handle)));
-
+        // The CRT's _isatty() is not authoritative for modern Windows terminal
+        // attachment. In particular, a process attached through ConPTY can have
+        // valid console handles while the CRT descriptor is reported as non-TTY.
+        // Query the Win32 console mode directly instead.
         var original_input_mode: c.DWORD = 0;
         var original_output_mode: c.DWORD = 0;
-        if (c.GetConsoleMode(input_handle, &original_input_mode) == 0) return SessionError.ReadModeFailed;
-        if (c.GetConsoleMode(output_handle, &original_output_mode) == 0) return SessionError.ReadModeFailed;
+        if (c.GetConsoleMode(input_handle, &original_input_mode) == 0) return SessionError.NotTerminal;
+        if (c.GetConsoleMode(output_handle, &original_output_mode) == 0) return SessionError.NotTerminal;
 
         var raw_input_mode = original_input_mode;
         raw_input_mode &= ~@as(c.DWORD, c.ENABLE_ECHO_INPUT | c.ENABLE_LINE_INPUT | c.ENABLE_PROCESSED_INPUT);
+        // Keep ENABLE_WINDOW_INPUT if the terminal supplied it. ConPTY uses the
+        // resulting WINDOW_BUFFER_SIZE_EVENT as part of resize propagation; the
+        // Windows wait layer drains that record before handing character input
+        // to the existing VT byte decoder.
         raw_input_mode |= c.ENABLE_VIRTUAL_TERMINAL_INPUT;
         if (c.SetConsoleMode(input_handle, raw_input_mode) == 0) return SessionError.EnterRawModeFailed;
 
@@ -64,5 +66,14 @@ pub const Session = struct {
 };
 
 pub fn isTerminal(fd: c_int) bool {
-    return c._isatty(fd) == 1;
+    const handle = handleForFd(fd) catch return false;
+    var mode: c.DWORD = 0;
+    return c.GetConsoleMode(handle, &mode) != 0;
+}
+
+fn handleForFd(fd: c_int) SessionError!c.HANDLE {
+    const os_handle = c._get_osfhandle(fd);
+    if (os_handle == -1) return SessionError.InvalidHandle;
+    const handle: c.HANDLE = @ptrFromInt(@as(usize, @intCast(os_handle)));
+    return handle;
 }

@@ -20,4 +20,8 @@ export {
   getHost,
   installHost,
   type HondoNode,
+  type HondoNodeEvent,
+  type HondoNodeEventHandler,
+  type HondoNodeEventPhase,
+  type HondoNodeEventResult,
 } from './host.js';
