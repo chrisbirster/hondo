@@ -1,0 +1,26 @@
+name: Apply Full Ctrl Vocabulary
+
+on:
+  pull_request:
+    types: [reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'feature/full-ctrl-key-vocabulary'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/full-ctrl-key-vocabulary
+          fetch-depth: 0
+      - run: python3 .github/apply_full_ctrl.py
+      - run: |
+          rm .github/apply_full_ctrl.py .github/workflows/apply-full-ctrl.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: expose full terminal Ctrl-key vocabulary"
+          git push origin HEAD:feature/full-ctrl-key-vocabulary
