@@ -1,0 +1,31 @@
+name: Format Ctrl Patch
+
+on:
+  pull_request:
+    types: [reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.event.pull_request.head.ref == 'feature/full-ctrl-key-vocabulary'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/full-ctrl-key-vocabulary
+          fetch-depth: 0
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+      - name: Format touched Zig files
+        run: zig fmt zig/src/terminal/input.zig zig/src/terminal/control.zig zig/src/runtime/input_events.zig
+      - name: Commit formatting only
+        run: |
+          rm .github/workflows/format-ctrl-patch.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "style: format full ctrl-key patch"
+          git push origin HEAD:feature/full-ctrl-key-vocabulary
