@@ -117,12 +117,28 @@ pub fn decode(bytes: []const u8) ?Decoded {
 
 fn legacyControlKey(byte: u8) ?Key {
     return switch (byte) {
-        0x01 => .ctrl_a, 0x02 => .ctrl_b, 0x03 => .ctrl_c, 0x04 => .ctrl_d,
-        0x05 => .ctrl_e, 0x06 => .ctrl_f, 0x07 => .ctrl_g,
-        0x0b => .ctrl_k, 0x0c => .ctrl_l, 0x0e => .ctrl_n, 0x0f => .ctrl_o,
-        0x10 => .ctrl_p, 0x11 => .ctrl_q, 0x12 => .ctrl_r, 0x13 => .ctrl_s,
-        0x14 => .ctrl_t, 0x15 => .ctrl_u, 0x16 => .ctrl_v, 0x17 => .ctrl_w,
-        0x18 => .ctrl_x, 0x19 => .ctrl_y, 0x1a => .ctrl_z,
+        0x01 => .ctrl_a,
+        0x02 => .ctrl_b,
+        0x03 => .ctrl_c,
+        0x04 => .ctrl_d,
+        0x05 => .ctrl_e,
+        0x06 => .ctrl_f,
+        0x07 => .ctrl_g,
+        0x0b => .ctrl_k,
+        0x0c => .ctrl_l,
+        0x0e => .ctrl_n,
+        0x0f => .ctrl_o,
+        0x10 => .ctrl_p,
+        0x11 => .ctrl_q,
+        0x12 => .ctrl_r,
+        0x13 => .ctrl_s,
+        0x14 => .ctrl_t,
+        0x15 => .ctrl_u,
+        0x16 => .ctrl_v,
+        0x17 => .ctrl_w,
+        0x18 => .ctrl_x,
+        0x19 => .ctrl_y,
+        0x1a => .ctrl_z,
         else => null,
     };
 }
@@ -130,13 +146,32 @@ fn legacyControlKey(byte: u8) ?Key {
 fn ctrlKeyForCodepoint(codepoint: u21) ?Key {
     const lower = if (codepoint >= 'A' and codepoint <= 'Z') codepoint + ('a' - 'A') else codepoint;
     return switch (lower) {
-        'a' => .ctrl_a, 'b' => .ctrl_b, 'c' => .ctrl_c, 'd' => .ctrl_d,
-        'e' => .ctrl_e, 'f' => .ctrl_f, 'g' => .ctrl_g, 'h' => .ctrl_h,
-        'i' => .ctrl_i, 'j' => .ctrl_j, 'k' => .ctrl_k, 'l' => .ctrl_l,
-        'm' => .ctrl_m, 'n' => .ctrl_n, 'o' => .ctrl_o, 'p' => .ctrl_p,
-        'q' => .ctrl_q, 'r' => .ctrl_r, 's' => .ctrl_s, 't' => .ctrl_t,
-        'u' => .ctrl_u, 'v' => .ctrl_v, 'w' => .ctrl_w, 'x' => .ctrl_x,
-        'y' => .ctrl_y, 'z' => .ctrl_z,
+        'a' => .ctrl_a,
+        'b' => .ctrl_b,
+        'c' => .ctrl_c,
+        'd' => .ctrl_d,
+        'e' => .ctrl_e,
+        'f' => .ctrl_f,
+        'g' => .ctrl_g,
+        'h' => .ctrl_h,
+        'i' => .ctrl_i,
+        'j' => .ctrl_j,
+        'k' => .ctrl_k,
+        'l' => .ctrl_l,
+        'm' => .ctrl_m,
+        'n' => .ctrl_n,
+        'o' => .ctrl_o,
+        'p' => .ctrl_p,
+        'q' => .ctrl_q,
+        'r' => .ctrl_r,
+        's' => .ctrl_s,
+        't' => .ctrl_t,
+        'u' => .ctrl_u,
+        'v' => .ctrl_v,
+        'w' => .ctrl_w,
+        'x' => .ctrl_x,
+        'y' => .ctrl_y,
+        'z' => .ctrl_z,
         else => null,
     };
 }
@@ -146,7 +181,10 @@ fn decodeKittyKey(bytes: []const u8) ?Decoded {
     var end: ?usize = null;
     var index: usize = 2;
     while (index < bytes.len) : (index += 1) {
-        if (bytes[index] == 'u') { end = index; break; }
+        if (bytes[index] == 'u') {
+            end = index;
+            break;
+        }
         if ((bytes[index] < '0' or bytes[index] > '9') and bytes[index] != ';' and bytes[index] != ':') return null;
     }
     const terminator = end orelse return null;
