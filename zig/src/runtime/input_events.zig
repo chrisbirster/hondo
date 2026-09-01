@@ -162,7 +162,32 @@ fn encodeKey(allocator: std.mem.Allocator, key: terminal_input.Key) !Encoded {
         .tab => .{ .event_type = "key", .payload = "{\"kind\":\"tab\"}" },
         .shift_tab => .{ .event_type = "key", .payload = "{\"kind\":\"shiftTab\"}" },
         .escape => .{ .event_type = "key", .payload = "{\"kind\":\"escape\"}" },
+        .ctrl_a => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlA\"}" },
+        .ctrl_b => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlB\"}" },
         .ctrl_c => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlC\"}" },
+        .ctrl_d => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlD\"}" },
+        .ctrl_e => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlE\"}" },
+        .ctrl_f => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlF\"}" },
+        .ctrl_g => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlG\"}" },
+        .ctrl_h => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlH\"}" },
+        .ctrl_i => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlI\"}" },
+        .ctrl_j => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlJ\"}" },
+        .ctrl_k => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlK\"}" },
+        .ctrl_l => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlL\"}" },
+        .ctrl_m => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlM\"}" },
+        .ctrl_n => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlN\"}" },
+        .ctrl_o => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlO\"}" },
+        .ctrl_p => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlP\"}" },
+        .ctrl_q => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlQ\"}" },
+        .ctrl_r => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlR\"}" },
+        .ctrl_s => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlS\"}" },
+        .ctrl_t => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlT\"}" },
+        .ctrl_u => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlU\"}" },
+        .ctrl_v => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlV\"}" },
+        .ctrl_w => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlW\"}" },
+        .ctrl_x => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlX\"}" },
+        .ctrl_y => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlY\"}" },
+        .ctrl_z => .{ .event_type = "key", .payload = "{\"kind\":\"ctrlZ\"}" },
         .up => .{ .event_type = "key", .payload = "{\"kind\":\"up\"}" },
         .down => .{ .event_type = "key", .payload = "{\"kind\":\"down\"}" },
         .left => .{ .event_type = "key", .payload = "{\"kind\":\"left\"}" },
@@ -221,6 +246,11 @@ test "terminal event routing encodes key mouse and terminal focus payloads" {
     try std.testing.expectEqualStrings("{\"kind\":\"tab\"}", tab.payload);
     const shift_tab = try encode(std.testing.allocator, .{ .key = .shift_tab });
     try std.testing.expectEqualStrings("{\"kind\":\"shiftTab\"}", shift_tab.payload);
+
+    const ctrl_o = try encode(std.testing.allocator, .{ .key = .ctrl_o });
+    try std.testing.expectEqualStrings("{\"kind\":\"ctrlO\"}", ctrl_o.payload);
+    const ctrl_i = try encode(std.testing.allocator, .{ .key = .ctrl_i });
+    try std.testing.expectEqualStrings("{\"kind\":\"ctrlI\"}", ctrl_i.payload);
 
     const codepoint = try encode(std.testing.allocator, .{ .key = .{ .codepoint = 'λ' } });
     defer std.testing.allocator.free(codepoint.payload);
