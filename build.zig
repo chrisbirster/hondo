@@ -14,8 +14,8 @@ pub fn build(b: *std.Build) void {
         }),
     });
     const is_windows = target.result.os.tag == .windows;
-    const quickjs_optimize: std.builtin.OptimizeMode = if (target.result.os.tag == .macos and optimize != .Debug)
-        .Debug
+    const quickjs_optimize: std.builtin.OptimizeMode = if (target.result.os.tag == .macos and optimize == .ReleaseSafe)
+        .ReleaseFast
     else
         optimize;
 
