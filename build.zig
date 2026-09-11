@@ -14,13 +14,17 @@ pub fn build(b: *std.Build) void {
         }),
     });
     const is_windows = target.result.os.tag == .windows;
+    const quickjs_optimize: std.builtin.OptimizeMode = if (target.result.os.tag == .macos and optimize == .ReleaseSafe)
+        .ReleaseFast
+    else
+        optimize;
 
     const quickjs = b.addLibrary(.{
         .name = "quickjs",
         .linkage = .static,
         .root_module = b.createModule(.{
             .target = target,
-            .optimize = optimize,
+            .optimize = quickjs_optimize,
             .link_libc = true,
         }),
     });
