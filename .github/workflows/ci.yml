@@ -53,6 +53,10 @@ jobs:
       - name: Run counter executable smoke
         run: zig build counter-smoke
 
+      - name: Run macOS ReleaseSafe QuickJS smoke
+        if: runner.os == 'macOS'
+        run: zig build counter-smoke -Doptimize=ReleaseSafe
+
       - name: Run POSIX PTY lifecycle smoke
         if: runner.os == 'Linux' || runner.os == 'macOS'
         shell: bash
